@@ -78,6 +78,16 @@ ELSE(ZLIB_FOUND)
         )
     ENDIF()
 
+    # The library path other dependencies (physfs, mariadb) are pointed at.
+    # It used to be set only when zlib was downloaded; with the bundled
+    # deps/zlib.zip it was empty, so those dependencies silently built their
+    # own older zlib copies, which then clash at link time on MSVC.
+    IF(WIN32)
+        SET(ZLIB_LIBRARY "${CMAKE_CURRENT_BINARY_DIR}/zlib/lib/zlibstatic$<$<CONFIG:Debug>:d>$<$<CONFIG:RelWithDebInfo>:_reldeb>.lib")
+    ELSE()
+        SET(ZLIB_LIBRARY "${CMAKE_CURRENT_BINARY_DIR}/zlib/lib/libz.a")
+    ENDIF()
+
     ExternalProject_Add(
         zlib-lib
 

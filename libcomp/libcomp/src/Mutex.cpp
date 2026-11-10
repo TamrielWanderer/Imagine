@@ -26,6 +26,8 @@
 
 #include "Mutex.h"
 
+#include <system_error>
+
 using namespace libcomp;
 
 Mutex::Mutex() : mLocked(false) {}

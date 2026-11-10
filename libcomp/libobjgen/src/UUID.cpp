@@ -36,6 +36,7 @@
 
 // Standard C++11 Libraries
 #include <algorithm>
+#include <cstring>
 #include <fstream>
 #include <iomanip>
 #include <regex>

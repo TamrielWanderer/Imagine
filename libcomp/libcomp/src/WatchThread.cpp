@@ -26,6 +26,8 @@
 
 #include "WatchThread.h"
 
+#include <system_error>
+
 #include "DayCare.h"
 
 // Linux Includes

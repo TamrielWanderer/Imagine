@@ -35,8 +35,8 @@ make
 #### Required Dependencies ####
 
 * [Visual Studio 2026](https://visualstudio.microsoft.com/) with the "Desktop development with C++" workload
-* [CMake 4.2+](https://cmake.org) (needed for the Visual Studio 2026 generator)
-* [Qt 5.12 - 5.15](https://www.qt.io), MSVC build matching your target (64-bit or 32-bit)
+* [CMake 4.2+](https://cmake.org) (needed for the Visual Studio 2026 generator; the copy bundled with Visual Studio 2026 works)
+* [Qt 5.12 - 5.15](https://www.qt.io), MSVC build matching your target (64-bit or 32-bit), including the Qt WebEngine module (used by the updater). Without a Qt account you can install it with [aqtinstall](https://github.com/miurahr/aqtinstall): `aqt install-qt windows desktop 5.15.2 win64_msvc2019_64 -m qtwebengine`
 * [OpenSSL](https://www.openssl.org) for Windows (the build scripts use the system OpenSSL)
 
 #### Optional Dependencies ####

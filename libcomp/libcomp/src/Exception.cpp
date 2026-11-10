@@ -49,6 +49,7 @@
 
 #include <climits>
 #include <cstdlib>
+#include <cstring>
 #include <exception>
 #include <iomanip>
 #include <mutex>

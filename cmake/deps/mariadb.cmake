@@ -75,15 +75,25 @@ ELSE(MariaDBClient_FOUND)
         )
     ENDIF()
 
+    # Use the project's zlib rather than the copy bundled with the connector,
+    # so only one zlib ends up in the final link (see zlib.cmake).
+    SET(MARIADB_ZLIB_DEPENDS "")
+    IF(TARGET zlib-lib)
+        SET(MARIADB_ZLIB_DEPENDS zlib-lib)
+    ENDIF()
+
     ExternalProject_Add(
         mariadb
 
         ${MARIADB_URL}
 
-        DEPENDS openssl
+        DEPENDS openssl ${MARIADB_ZLIB_DEPENDS}
 
         PREFIX ${CMAKE_CURRENT_BINARY_DIR}/mariadb
-        CMAKE_ARGS ${CMAKE_RELWITHDEBINFO_OPTIONS} -DCMAKE_INSTALL_PREFIX:PATH=<INSTALL_DIR> "-DCMAKE_CXX_FLAGS=-std=c++11 ${SPECIAL_COMPILER_FLAGS}" "-DOPENSSL_ROOT_DIR=${OPENSSL_ROOT_DIR}" -DUSE_STATIC_RUNTIME=${USE_STATIC_RUNTIME} -DCMAKE_DEBUG_POSTFIX=d -DWITH_OPENSSL=ON -DUSE_SYSTEM_OPENSSL=${USE_SYSTEM_OPENSSL}
+
+        # Fix CMake 4 compatibility (see cmake/patches/mariadb.cmake).
+        PATCH_COMMAND ${CMAKE_COMMAND} -DSRC=<SOURCE_DIR> -P "${CMAKE_SOURCE_DIR}/cmake/patches/mariadb.cmake"
+        CMAKE_ARGS ${CMAKE_RELWITHDEBINFO_OPTIONS} -DCMAKE_INSTALL_PREFIX:PATH=<INSTALL_DIR> "-DCMAKE_CXX_FLAGS=-std=c++11 ${SPECIAL_COMPILER_FLAGS}" "-DOPENSSL_ROOT_DIR=${OPENSSL_ROOT_DIR}" -DUSE_STATIC_RUNTIME=${USE_STATIC_RUNTIME} -DCMAKE_DEBUG_POSTFIX=d -DWITH_OPENSSL=ON -DUSE_SYSTEM_OPENSSL=${USE_SYSTEM_OPENSSL} -DWITH_EXTERNAL_ZLIB=ON "-DZLIB_LIBRARY=${ZLIB_LIBRARY}" "-DZLIB_INCLUDE_DIR=${ZLIB_INCLUDES}"
 
         # Dump output to a log instead of the screen.
         LOG_DOWNLOAD ON

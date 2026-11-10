@@ -89,13 +89,21 @@ ELSE(USE_EXTERNAL_BINARIES)
         )
     ENDIF()
 
+    # MSVC reports __cplusplus as 199711L unless /Zc:__cplusplus is given, so
+    # this googletest falls back to std::tr1::tuple, which newer MSVC standard
+    # libraries (VS 2026) no longer provide. Tell it to use std::tuple.
+    SET(GTEST_EXTRA_CXX_FLAGS "")
+    IF(MSVC)
+        SET(GTEST_EXTRA_CXX_FLAGS "/DGTEST_LANG_CXX11=1 /DGTEST_HAS_TR1_TUPLE=0")
+    ENDIF(MSVC)
+
     ExternalProject_Add(
         googletest
 
         ${GOOGLETEST_URL}
 
         PREFIX ${CMAKE_CURRENT_BINARY_DIR}/googletest
-        CMAKE_ARGS ${CMAKE_RELWITHDEBINFO_OPTIONS} -DCMAKE_INSTALL_PREFIX:PATH=<INSTALL_DIR> "-DCMAKE_CXX_FLAGS=-std=c++11 ${SPECIAL_COMPILER_FLAGS}" -DUSE_STATIC_RUNTIME=${USE_STATIC_RUNTIME} -DCMAKE_DEBUG_POSTFIX=d
+        CMAKE_ARGS ${CMAKE_RELWITHDEBINFO_OPTIONS} -DCMAKE_INSTALL_PREFIX:PATH=<INSTALL_DIR> "-DCMAKE_CXX_FLAGS=-std=c++11 ${SPECIAL_COMPILER_FLAGS} ${GTEST_EXTRA_CXX_FLAGS}" -DUSE_STATIC_RUNTIME=${USE_STATIC_RUNTIME} -DCMAKE_DEBUG_POSTFIX=d
 
         # Dump output to a log instead of the screen.
         LOG_DOWNLOAD ON
@@ -174,3 +182,13 @@ ELSE(USE_EXTERNAL_BINARIES)
 
     SET(GMOCK_DIR "${INSTALL_DIR}")
 ENDIF(USE_EXTERNAL_BINARIES)
+
+# Code that includes the googletest headers needs the same settings (see above).
+IF(MSVC)
+    FOREACH(_gtest_target gtest gmock gmock_main)
+        IF(TARGET ${_gtest_target})
+            SET_PROPERTY(TARGET ${_gtest_target} APPEND PROPERTY
+                INTERFACE_COMPILE_DEFINITIONS GTEST_LANG_CXX11=1 GTEST_HAS_TR1_TUPLE=0)
+        ENDIF()
+    ENDFOREACH()
+ENDIF(MSVC)
