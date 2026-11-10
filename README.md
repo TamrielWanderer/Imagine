@@ -5,7 +5,7 @@
 
 ## Shin Megami Tensei IMAGINE (真・女神転生IMAGINE) Open Source Conservation Effort ##
 
-The is server software to revive an MMO that has been shutdown (SMT: IMAGINE). It's a complete re-implementation of the server from scratch and fully open source.
+The aim of the project is to revive an MMO that has been shutdown (SMT: IMAGINE). It's a complete re-implementation of the server from scratch and fully open source.
 
 ### Building on Linux ###
 
