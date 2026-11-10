@@ -26,6 +26,8 @@
 
 #include "SpawnThread.h"
 
+#include <system_error>
+
 #include <signal.h>
 
 #include "DayCare.h"

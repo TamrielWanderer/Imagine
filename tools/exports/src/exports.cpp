@@ -33,6 +33,7 @@
 
 // Standard C Includes
 #include <cstdlib>
+#include <cstring>
 #include <ctime>
 
 // Standard C++ Includes

@@ -29,6 +29,7 @@
 
 // Standard C++11 Includes
 #include <streambuf>
+#include <cstdint>
 #include <vector>
 
 namespace libcomp {

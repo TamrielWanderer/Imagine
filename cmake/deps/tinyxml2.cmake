@@ -80,6 +80,9 @@ ELSE(TINYXML2_FOUND)
         ${TINYXML2_URL}
 
         PREFIX ${CMAKE_CURRENT_BINARY_DIR}/tinyxml2
+
+        # Fix CMake 4 compatibility (see cmake/patches/tinyxml2.cmake).
+        PATCH_COMMAND ${CMAKE_COMMAND} -DSRC=<SOURCE_DIR> -P "${CMAKE_SOURCE_DIR}/cmake/patches/tinyxml2.cmake"
         CMAKE_ARGS ${CMAKE_RELWITHDEBINFO_OPTIONS} -DCMAKE_INSTALL_PREFIX:PATH=<INSTALL_DIR> -DBUILD_SHARED_LIBS=OFF "-DCMAKE_CXX_FLAGS=-std=c++11 ${SPECIAL_COMPILER_FLAGS}" -DUSE_STATIC_RUNTIME=${USE_STATIC_RUNTIME} -DCMAKE_DEBUG_POSTFIX=d -DCMAKE_INSTALL_LIBDIR=lib
 
         # Dump output to a log instead of the screen.
