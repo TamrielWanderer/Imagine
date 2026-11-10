@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<objgen>
+    <object name="ServerConfig" persistent="false">
+        <member type="string" name="DiffieHellmanKeyPair"
+            regex="^[a-fA-F0-9]{256}|$"/>
+        <member type="u16" name="Port"/>
+        <member type="enum" name="DatabaseType" default="MARIADB">
+            <value>MARIADB</value>
+            <value>SQLITE3</value>
+        </member>
+        <member type="bool" name="MultithreadMode" default="true"/>
+        <member type="list" name="DataStore">
+            <element type="string"/>
+        </member>
+        <member type="bool" name="DataStoreSync" default="true"/>
+        <member type="string" name="LogFile"/>
+        <member type="bool" name="LogFileTimestamp" default="true"/>
+        <member type="bool" name="LogFileAppend" default="true"/>
+        <member type="bool" name="LogRotation" default="false"/>
+        <member type="bool" name="LogCompression" default="true"/>
+        <member type="s32" name="LogRotationCount" default="3"/>
+        <member type="s32" name="LogRotationDays" default="1"/>
+        <member type="map" name="LogLevels">
+            <key type="string"/>
+            <value type="enum" name="LogLevel">
+                <value>LEVEL_DEBUG</value>
+                <value>LEVEL_INFO</value>
+                <value>LEVEL_WARNING</value>
+                <value>LEVEL_ERROR</value>
+                <value>LEVEL_CRITICAL</value>
+            </value>
+        </member>
+        <member type="string" name="CapturePath"/>
+        <member type="string" name="ServerConstantsPath"/>
+        <member type="bool" name="MemoryDiagnostic" default="false"/>
+    </object>
+</objgen>
