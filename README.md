@@ -34,17 +34,20 @@ make
 
 #### Required Dependencies ####
 
-* [Visual Studio 2015](https://visualstudio.microsoft.com/vs/older-downloads/)
-* [CMake](https://cmake.org)
-* [Qt 5.7+](https://www.qt.io)
+* [Visual Studio 2026](https://visualstudio.microsoft.com/) with the "Desktop development with C++" workload
+* [CMake 4.2+](https://cmake.org) (needed for the Visual Studio 2026 generator)
+* [Qt 5.12 - 5.15](https://www.qt.io), MSVC build matching your target (64-bit or 32-bit)
+* [OpenSSL](https://www.openssl.org) for Windows (the build scripts use the system OpenSSL)
 
 #### Optional Dependencies ####
 
 * [Doxygen](http://www.doxygen.nl)
-* [WiX Toolset](http://wixtoolset.org)
+* [WiX Toolset](http://wixtoolset.org) (only to build the _.msi_ installer)
 
 #### Building ####
 
 > All dependencies are bundled in this repository (see _deps/SOURCES.md_), so no submodules or downloads are needed.
 
-Edit the _vsbuild_x86.bat_ and _vsbuild_x64.bat_ batch files to point to your install of Qt. Run the desired script and you should see a _build32_ or _build64_ folder. Inside the folder should be a comp_hack.sln solution file. Open the solution and build as normal.
+Edit the paths at the top of _vsbuild_x64.bat_ (or _vsbuild_x86.bat_ for 32-bit) to point to your Qt and OpenSSL installs. Run the script and you should see a _build64_ (or _build32_) folder containing a comp_hack.sln solution file. Open the solution in Visual Studio 2026 and build as normal.
+
+If the newer compiler rejects any of the older bundled code, install the "MSVC v143 - VS 2022 C++ build tools" component from the Visual Studio Installer, set `TOOLSET=v143` at the top of the batch file, and run it again from a clean build folder.

@@ -24,6 +24,13 @@ IF(WIN32)
     SET(CMAKE_RELWITHDEBINFO_OPTIONS -DCMAKE_RELWITHDEBINFO_POSTFIX=_reldeb)
 ENDIF(WIN32)
 
+# CMake 4.0 removed compatibility with projects that require a CMake version
+# older than 3.5. The bundled dependencies (deps/*.zip) declare 2.4-2.8, so
+# tell CMake 4+ to treat them as 3.5 projects instead of refusing to build.
+IF(NOT CMAKE_VERSION VERSION_LESS 4.0)
+    LIST(APPEND CMAKE_RELWITHDEBINFO_OPTIONS -DCMAKE_POLICY_VERSION_MINIMUM=3.5)
+ENDIF()
+
 IF(NOT UPDATER_ONLY AND NOT BUILD_EXOTIC)
     INCLUDE("${CMAKE_SOURCE_DIR}/cmake/deps/gsl.cmake")
 ENDIF(NOT UPDATER_ONLY AND NOT BUILD_EXOTIC)

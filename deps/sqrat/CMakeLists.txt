@@ -1,4 +1,4 @@
-CMAKE_MINIMUM_REQUIRED(VERSION 3.2.3)
+CMAKE_MINIMUM_REQUIRED(VERSION 3.5)
 
 # Only show Debug and Release configurations in Visual Studio.
 IF(CMAKE_CONFIGURATION_TYPES)
