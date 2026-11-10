@@ -20,7 +20,7 @@ sudo apt-get install build-essential cmake docbook-xsl doxygen texlive-font-util
 
 #### Building ####
 
-> Make sure to initialize and update the submodules before trying to build!
+> All dependencies are bundled in this repository (see _deps/SOURCES.md_), so no submodules or downloads are needed.
 
 That should be all you need. Just build the project now:
 ```
@@ -45,6 +45,6 @@ make
 
 #### Building ####
 
-> Make sure to initialize and update the submodules before trying to build!
+> All dependencies are bundled in this repository (see _deps/SOURCES.md_), so no submodules or downloads are needed.
 
 Edit the _vsbuild_x86.bat_ and _vsbuild_x64.bat_ batch files to point to your install of Qt. Run the desired script and you should see a _build32_ or _build64_ folder. Inside the folder should be a comp_hack.sln solution file. Open the solution and build as normal.

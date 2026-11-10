@@ -2,7 +2,6 @@ obj-*
 build*
 cmake-build-*
 debian/*.log
-deps/*.zip
 deps/libcomp/
 binaries/
 binaries32/
