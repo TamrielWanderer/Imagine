@@ -18,5 +18,10 @@
         <member type="WorldSharedConfig*" name="WorldSharedConfig"/>
         <member type="bool" name="PerfMonitorEnabled" default="false"/>
         <member type="bool" name="VerifyServerData" default="false"/>
+        <member type="bool" name="PartnerCombatAssist" default="false"/>
+        <member type="u16" name="PartnerAssistInterval" default="1500"/>
+        <member type="u8" name="PartnerAssistHealPercent" default="50"/>
+        <member type="u16" name="PartnerAssistBuffInterval" default="60"/>
+        <member type="bool" name="PartnerAssistChase" default="true"/>
     </object>
 </objgen>

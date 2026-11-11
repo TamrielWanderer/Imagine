@@ -28,6 +28,9 @@
 #define SERVER_CHANNEL_SRC_AIMANAGER_H
 
 // channel Includes
+#include <mutex>
+#include <unordered_map>
+
 #include "AIState.h"
 #include "ActiveEntityState.h"
 #include "ClientState.h"
@@ -492,6 +495,40 @@ class AIManager {
   /// by AI type name
   static std::unordered_map<std::string, std::shared_ptr<libhack::ScriptEngine>>
       sPreparedScripts;
+
+  /**
+   * Partner demon combat assist (experimental, ChannelConfig
+   * PartnerCombatAssist). Lets summoned partner demons heal and buff
+   * their owner and use their skills on the owner's opponents.
+   * @param zone Pointer to the zone being updated
+   * @param now Current timestamp of the server
+   */
+  void UpdatePartnerAssist(const std::shared_ptr<Zone>& zone, uint64_t now);
+
+  /**
+   * Pick and activate one assist skill for a partner demon.
+   * @return true if a skill was activated
+   */
+  bool PartnerAssistAct(const std::shared_ptr<ActiveEntityState>& dState,
+                        const std::shared_ptr<ActiveEntityState>& cState,
+                        uint64_t now);
+
+  /// Per partner demon assist tracking
+  struct PartnerAssistState {
+    int8_t ActivationID = -1;
+    int64_t TargetID = 0;
+    uint64_t NextThink = 0;
+    uint64_t LastSeen = 0;
+    int32_t EngageID = 0;
+    uint64_t EngageUntil = 0;
+    std::unordered_map<uint32_t, uint64_t> SupportUsed;
+  };
+
+  /// Partner assist states by demon entity ID
+  std::unordered_map<int32_t, PartnerAssistState> mPartnerAssist;
+
+  /// Lock for mPartnerAssist
+  std::mutex mPartnerAssistLock;
 
   /// Pointer to the channel server.
   std::weak_ptr<ChannelServer> mServer;

@@ -38,6 +38,7 @@
 
 // object Includes
 #include <AILogicGroup.h>
+#include <ChannelConfig.h>
 #include <ActivatedAbility.h>
 #include <Ally.h>
 #include <MiAIData.h>
@@ -327,6 +328,8 @@ void AIManager::UpdateActiveStates(const std::shared_ptr<Zone>& zone,
 
     ChannelClientConnection::FlushAllOutgoing(zConnections);
   }
+
+  UpdatePartnerAssist(zone, now);
 }
 
 void AIManager::CombatSkillHit(
@@ -2718,4 +2721,428 @@ bool AIManager::LazyPathingEnabled() {
   const static bool enabled =
       mServer.lock()->GetWorldSharedConfig()->GetAILazyPathing();
   return enabled;
+}
+
+void AIManager::UpdatePartnerAssist(const std::shared_ptr<Zone>& zone,
+                                    uint64_t now) {
+  auto server = mServer.lock();
+  if (!server || !zone) {
+    return;
+  }
+
+  auto conf =
+      std::dynamic_pointer_cast<objects::ChannelConfig>(server->GetConfig());
+  if (!conf || !conf->GetPartnerCombatAssist()) {
+    return;
+  }
+
+  auto skillManager = server->GetSkillManager();
+  uint64_t interval = (uint64_t)conf->GetPartnerAssistInterval() * 1000ULL;
+
+  std::lock_guard<std::mutex> lock(mPartnerAssistLock);
+
+  bool flush = false;
+  for (auto client : zone->GetConnectionList()) {
+    auto state = client->GetClientState();
+    auto cState = state ? state->GetCharacterState() : nullptr;
+    auto dState = state ? state->GetDemonState() : nullptr;
+    if (!cState || !dState || !dState->Ready() || dState->GetZone() != zone) {
+      continue;
+    }
+
+    auto& pa = mPartnerAssist[dState->GetEntityID()];
+    pa.LastSeen = now;
+
+    if (!dState->IsAlive() || !cState->IsAlive()) {
+      pa.ActivationID = -1;
+      continue;
+    }
+
+    dState->RefreshCurrentPosition(now);
+    dState->ExpireStatusTimes(now);
+
+    auto activated = dState->GetActivatedAbility();
+    if (pa.ActivationID >= 0) {
+      if (!activated || activated->GetActivationID() != pa.ActivationID) {
+        // Finished, cancelled or replaced by the client
+        pa.ActivationID = -1;
+      } else if (activated->GetExecutionRequestTime() ||
+                 activated->GetExecutionTime()) {
+        // Already executing, wait for it
+        continue;
+      } else if (activated->GetChargedTime() <= now) {
+        auto target = zone->GetActiveEntity((int32_t)pa.TargetID);
+        auto def = activated->GetSkillData();
+        if (!target || !target->IsAlive() ||
+            !skillManager->TargetInRange(dState, def, target)) {
+          skillManager->CancelSkill(dState, pa.ActivationID);
+        } else if (!skillManager->ExecuteSkill(dState, pa.ActivationID,
+                                               pa.TargetID) &&
+                   dState->GetActivatedAbility() == activated) {
+          skillManager->CancelSkill(dState, pa.ActivationID);
+        }
+
+        pa.ActivationID = -1;
+        flush = true;
+        continue;
+      } else {
+        // Still charging
+        continue;
+      }
+    }
+
+    if (dState->GetActivatedAbility()) {
+      // The client is driving the demon right now, do not interfere
+      continue;
+    }
+
+    if (pa.NextThink > now) {
+      continue;
+    }
+
+    pa.NextThink = now + interval;
+
+    if (!dState->CanAct() || dState->StatusTimesKeyExists(STATUS_LOCKOUT) ||
+        dState->StatusTimesKeyExists(STATUS_KNOCKBACK) ||
+        dState->StatusTimesKeyExists(STATUS_HIT_STUN) ||
+        dState->StatusTimesKeyExists(STATUS_CHARGING)) {
+      continue;
+    }
+
+    if (PartnerAssistAct(dState, cState, now)) {
+      flush = true;
+    }
+  }
+
+  // Drop entries for demons not seen for a minute
+  for (auto it = mPartnerAssist.begin(); it != mPartnerAssist.end();) {
+    if (it->second.LastSeen + 60000000ULL < now) {
+      it = mPartnerAssist.erase(it);
+    } else {
+      ++it;
+    }
+  }
+
+  if (flush) {
+    ChannelClientConnection::FlushAllOutgoing(zone->GetConnectionList());
+  }
+}
+
+bool AIManager::PartnerAssistAct(
+    const std::shared_ptr<ActiveEntityState>& dState,
+    const std::shared_ptr<ActiveEntityState>& cState, uint64_t now) {
+  auto server = mServer.lock();
+  auto conf =
+      std::dynamic_pointer_cast<objects::ChannelConfig>(server->GetConfig());
+  auto definitionManager = server->GetDefinitionManager();
+  auto skillManager = server->GetSkillManager();
+  auto zone = dState->GetZone();
+  auto dcs = dState->GetCoreStats();
+  auto ccs = cState->GetCoreStats();
+  if (!zone || !dcs || !ccs) {
+    return false;
+  }
+
+  auto& pa = mPartnerAssist[dState->GetEntityID()];
+  uint64_t buffWait = (uint64_t)conf->GetPartnerAssistBuffInterval() *
+                      1000000ULL;
+  float healPct = (float)conf->GetPartnerAssistHealPercent() / 100.f;
+
+  // Pick who to fight. In order: the enemy the owner is using a skill on
+  // right now, the enemy the owner engaged last (kept for a few seconds),
+  // then the closest opponent of the owner or demon or enemy targeting
+  // either of them. This lets the demon join as soon as the owner starts a
+  // fight instead of only after the owner is hit.
+  auto validEnemy = [&](const std::shared_ptr<ActiveEntityState>& e) {
+    return e && e != cState && e != dState && e->IsAlive() &&
+           !e->GetAIIgnored() && !cState->SameFaction(e);
+  };
+
+  std::shared_ptr<ActiveEntityState> enemy;
+  auto ownerActivated = cState->GetActivatedAbility();
+  if (ownerActivated) {
+    auto def = ownerActivated->GetSkillData();
+    int64_t tid = ownerActivated->GetTargetObjectID() > 0
+                      ? ownerActivated->GetTargetObjectID()
+                      : ownerActivated->GetActivationObjectID();
+    if (def && tid > 0 && def->GetBasic()->GetCombatSkill()) {
+      auto t = zone->GetActiveEntity((int32_t)tid);
+      if (validEnemy(t)) {
+        enemy = t;
+        pa.EngageID = t->GetEntityID();
+        pa.EngageUntil = now + 10000000ULL;
+      }
+    }
+  }
+
+  if (!enemy && pa.EngageID > 0 && pa.EngageUntil > now) {
+    auto t = zone->GetActiveEntity(pa.EngageID);
+    if (validEnemy(t)) {
+      enemy = t;
+    } else {
+      pa.EngageID = 0;
+    }
+  }
+
+  if (!enemy) {
+    std::set<int32_t> opponentIDs = cState->GetOpponentIDs();
+    for (int32_t id : dState->GetOpponentIDs()) {
+      opponentIDs.insert(id);
+    }
+
+    for (auto& e : zone->GetEnemiesAndAllies()) {
+      auto ai = e->GetAIState();
+      if (ai && (ai->GetTargetEntityID() == cState->GetEntityID() ||
+                 ai->GetTargetEntityID() == dState->GetEntityID())) {
+        opponentIDs.insert(e->GetEntityID());
+      }
+    }
+
+    float enemyDist = 0.f;
+    for (int32_t id : opponentIDs) {
+      auto opp = zone->GetActiveEntity(id);
+      if (!validEnemy(opp)) {
+        continue;
+      }
+
+      opp->RefreshCurrentPosition(now);
+      float dist = dState->GetDistance(opp->GetCurrentX(), opp->GetCurrentY());
+      if (!enemy || dist < enemyDist) {
+        enemy = opp;
+        enemyDist = dist;
+      }
+    }
+  }
+
+  if (enemy) {
+    enemy->RefreshCurrentPosition(now);
+  }
+
+  bool inCombat = enemy != nullptr;
+  bool ownerHurt = cState->GetMaxHP() > 0 &&
+                   (float)ccs->GetHP() / (float)cState->GetMaxHP() <= healPct;
+  bool selfHurt = dState->GetMaxHP() > 0 &&
+                  (float)dcs->GetHP() / (float)dState->GetMaxHP() <= healPct;
+
+  if (!inCombat && !ownerHurt) {
+    return false;
+  }
+
+  struct Choice {
+    std::shared_ptr<objects::MiSkillData> Def;
+    std::shared_ptr<ActiveEntityState> Target;
+    int32_t Weight;
+  };
+
+  std::list<Choice> heals, supports, attacks;
+
+  const static std::set<uint16_t> excludedFIDs = {
+      SVR_CONST.SKILL_DESPAWN, SVR_CONST.SKILL_DIGITALIZE_BREAK,
+      SVR_CONST.SKILL_MINION_SPAWN, SVR_CONST.SKILL_SUICIDE};
+
+  for (uint32_t skillID : dState->GetCurrentSkills()) {
+    auto def = definitionManager->GetSkillData(skillID);
+    if (!def || !SkillIsValid(def) ||
+        skillManager->SkillZoneRestricted(skillID, zone) ||
+        excludedFIDs.find(def->GetDamage()->GetFunctionID()) !=
+            excludedFIDs.end() ||
+        dState->GetSkillCooldowns(def->GetBasic()->GetCooldownID())) {
+      continue;
+    }
+
+    int32_t hpCost = 0, mpCost = 0;
+    uint16_t bulletCost = 0;
+    std::unordered_map<uint32_t, uint32_t> itemCosts;
+    std::unordered_map<uint32_t, uint64_t> compressibleItemCosts;
+    if (!skillManager->DetermineNormalCosts(dState, def, hpCost, mpCost,
+                                            bulletCost, itemCosts,
+                                            compressibleItemCosts) ||
+        bulletCost || itemCosts.size() || compressibleItemCosts.size() ||
+        hpCost >= dcs->GetHP() || mpCost > dcs->GetMP()) {
+      continue;
+    }
+
+    int32_t weight = 2;
+    if (!def->GetCast()->GetBasic()->GetChargeTime()) {
+      weight += 1;
+    }
+
+    auto validType = def->GetRange()->GetValidType();
+    auto actionType = def->GetBasic()->GetActionType();
+    bool isHeal = false;
+    if (actionType == objects::MiSkillBasicData::ActionType_t::SUPPORT) {
+      auto battleDamage = def->GetDamage()->GetBattleDamage();
+      switch (battleDamage->GetFormula()) {
+        case objects::MiBattleDamageData::Formula_t::HEAL_NORMAL:
+        case objects::MiBattleDamageData::Formula_t::HEAL_MAX_PERCENT:
+        case objects::MiBattleDamageData::Formula_t::HEAL_STATIC:
+          isHeal = battleDamage->GetModifier1() != 0;
+          break;
+        default:
+          break;
+      }
+    }
+
+    switch (validType) {
+      case objects::MiEffectiveRangeData::ValidType_t::ENEMY: {
+        if (!enemy || !skillManager->TargetInRange(dState, def, enemy)) {
+          break;
+        }
+
+        switch (actionType) {
+          case objects::MiSkillBasicData::ActionType_t::ATTACK:
+          case objects::MiSkillBasicData::ActionType_t::RUSH:
+          case objects::MiSkillBasicData::ActionType_t::SPIN:
+          case objects::MiSkillBasicData::ActionType_t::SHOT:
+          case objects::MiSkillBasicData::ActionType_t::RAPID:
+            // Costly skills hit harder, prefer them a little
+            attacks.push_back({def, enemy, weight + (mpCost > 0 ? 2 : 0)});
+            break;
+          case objects::MiSkillBasicData::ActionType_t::SUPPORT:
+            // Debuffs, throttled like buffs
+            if (pa.SupportUsed[skillID] + buffWait <= now) {
+              supports.push_back({def, enemy, weight});
+            }
+            break;
+          default:
+            break;
+        }
+      } break;
+      case objects::MiEffectiveRangeData::ValidType_t::ALLY:
+      case objects::MiEffectiveRangeData::ValidType_t::SOURCE:
+      case objects::MiEffectiveRangeData::ValidType_t::PARTY: {
+        if (actionType != objects::MiSkillBasicData::ActionType_t::SUPPORT) {
+          break;
+        }
+
+        // Ally skills go on the owner when possible, others on the demon
+        std::shared_ptr<ActiveEntityState> target = dState;
+        if (validType == objects::MiEffectiveRangeData::ValidType_t::ALLY &&
+            skillManager->TargetInRange(dState, def, cState)) {
+          target = cState;
+        }
+
+        if (isHeal) {
+          if (ownerHurt &&
+              (target == cState ||
+               validType == objects::MiEffectiveRangeData::ValidType_t::PARTY)) {
+            heals.push_back({def, target, weight + 2});
+          } else if (selfHurt) {
+            heals.push_back({def, dState, weight});
+          }
+        } else if (inCombat && pa.SupportUsed[skillID] + buffWait <= now) {
+          supports.push_back({def, target, weight});
+        }
+      } break;
+      default:
+        break;
+    }
+  }
+
+  // Heal first, then buff/debuff, then attack
+  std::list<Choice>* pick = nullptr;
+  if (heals.size()) {
+    pick = &heals;
+  } else if (supports.size() && (attacks.empty() || RNG(int32_t, 1, 10) <= 4)) {
+    pick = &supports;
+  } else if (attacks.size()) {
+    pick = &attacks;
+  } else if (supports.size()) {
+    pick = &supports;
+  }
+
+  if (!pick) {
+    if (enemy && conf->GetPartnerAssistChase() && dState->CanMove()) {
+      // Nothing in range: move next to the enemy so melee skills can reach
+      float dx = dState->GetCurrentX() - enemy->GetCurrentX();
+      float dy = dState->GetCurrentY() - enemy->GetCurrentY();
+      float dist = std::sqrt(dx * dx + dy * dy);
+      float stop = (float)(enemy->GetHitboxSize() * 10 +
+                           dState->GetHitboxSize() * 10 + 100);
+      if (dist > stop && dist < 3000.f) {
+        Point dest(enemy->GetCurrentX() + dx / dist * stop,
+                   enemy->GetCurrentY() + dy / dist * stop);
+        Point collide;
+        if (!zone->Collides(
+                Line(Point(dState->GetCurrentX(), dState->GetCurrentY()), dest),
+                collide)) {
+          dState->Move(dest.x, dest.y, now);
+
+          libcomp::Packet p;
+          p.WritePacketCode(ChannelToClientPacketCode_t::PACKET_MOVE);
+          p.WriteS32Little(dState->GetEntityID());
+          p.WriteFloat(dState->GetDestinationX());
+          p.WriteFloat(dState->GetDestinationY());
+          p.WriteFloat(dState->GetOriginX());
+          p.WriteFloat(dState->GetOriginY());
+          p.WriteFloat(dState->GetMovementSpeed());
+
+          RelativeTimeMap timeMap;
+          timeMap[p.Size()] = now;
+          timeMap[p.Size() + 4] = dState->GetDestinationTicks();
+          ChannelClientConnection::SendRelativeTimePacket(
+              zone->GetConnectionList(), p, timeMap, true);
+
+          // Think again once it has arrived
+          pa.NextThink = dState->GetDestinationTicks();
+          return true;
+        }
+      }
+    }
+
+    return false;
+  }
+
+  int32_t total = 0;
+  for (auto& c : *pick) {
+    total += c.Weight;
+  }
+
+  int32_t roll = RNG(int32_t, 1, total);
+  Choice choice = pick->front();
+  for (auto& c : *pick) {
+    roll -= c.Weight;
+    if (roll <= 0) {
+      choice = c;
+      break;
+    }
+  }
+
+  uint32_t skillID = choice.Def->GetCommon()->GetID();
+  int64_t targetID = (int64_t)choice.Target->GetEntityID();
+
+  LogAIManagerDebug([dState, skillID, targetID]() {
+    return libcomp::String("%1 partner assist uses skill %2 on %3\n")
+        .Arg(dState->GetEntityLabel())
+        .Arg(skillID)
+        .Arg(targetID);
+  });
+
+  if (!skillManager->ActivateSkill(dState, skillID, targetID, targetID,
+                                   ACTIVATION_TARGET)) {
+    return false;
+  }
+
+  if (pick != &attacks) {
+    pa.SupportUsed[skillID] = now;
+  }
+
+  auto activated = dState->GetActivatedAbility();
+  if (activated && activated->GetActivationID() >= 0 &&
+      activated->GetSkillData() == choice.Def &&
+      !activated->GetExecutionRequestTime() && !activated->GetExecutionTime()) {
+    if (activated->GetChargedTime() <= now) {
+      // No charge time, execute right away
+      if (!skillManager->ExecuteSkill(dState, activated->GetActivationID(),
+                                      targetID) &&
+          dState->GetActivatedAbility() == activated) {
+        skillManager->CancelSkill(dState, activated->GetActivationID());
+      }
+    } else {
+      pa.ActivationID = activated->GetActivationID();
+      pa.TargetID = targetID;
+    }
+  }
+
+  return true;
 }

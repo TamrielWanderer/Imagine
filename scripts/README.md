@@ -106,6 +106,17 @@ The server reads the client's `BinaryData` and `Map` folders directly.
 - Do not set an environment variable named `RC` before building; Visual
   Studio treats it as the resource compiler.
 
+## Partner demon combat assist (experimental)
+
+`start_server.ps1 -PartnerAssist on|off` (default on, remembered in
+`local-server/partner_assist.txt`). When on, the channel server makes your
+summoned demon heal you (or itself) below 50% HP, cast its buffs/debuffs about
+once a minute each, and use its attack skills on whatever you or it are
+fighting, roughly every 1.5 seconds. It never interrupts a skill the client
+already started for the demon. Tune it in `channel.xml` with
+`PartnerAssistInterval` (ms), `PartnerAssistHealPercent` and
+`PartnerAssistBuffInterval` (seconds).
+
 ## 6. Client updates through the launcher
 
 Players' launchers (`ImagineUpdate.exe`) can download changed client files
