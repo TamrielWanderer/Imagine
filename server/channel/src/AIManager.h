@@ -294,6 +294,14 @@ class AIManager {
   bool PartnerAssistBusy(const std::shared_ptr<ActiveEntityState>& dState,
                          int8_t activationID = -1);
 
+  /**
+   * Check if the partner assist runs the partner demon's skills. When it
+   * does, the client's own demon AI is told to use no skills so the two
+   * do not fight over the demon.
+   * @return true if the assist is on and owns the demon's skills
+   */
+  bool PartnerAssistOwnsSkills();
+
  private:
   /**
    * Update the state of an entity, processing AI and performing other

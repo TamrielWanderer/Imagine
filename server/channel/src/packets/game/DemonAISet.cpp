@@ -33,6 +33,7 @@
 
 // channel Includes
 #include "ChannelClientConnection.h"
+#include "AIManager.h"
 #include "ChannelServer.h"
 
 using namespace channel;
@@ -60,6 +61,12 @@ bool Parsers::DemonAISet::Parse(
     LogGeneralWarningMsg(
         "Partner demon attack settings could not be saved because no demon is "
         "summoned for the requesting client\n");
+    return true;
+  }
+
+  if (attackSettings == 0 && server->GetAIManager()->PartnerAssistOwnsSkills()) {
+    // The client only echoes the "no skills" value the partner assist sent;
+    // keep the player's real settings for when the assist is off
     return true;
   }
 

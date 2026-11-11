@@ -42,6 +42,7 @@
 #include <ActivatedAbility.h>
 #include <Ally.h>
 #include <MiAIData.h>
+#include <MiAddStatusTbl.h>
 #include <MiAIRelationData.h>
 #include <MiBattleDamageData.h>
 #include <MiCastBasicData.h>
@@ -2931,7 +2932,7 @@ bool AIManager::PartnerAssistAct(
   struct Choice {
     std::shared_ptr<objects::MiSkillData> Def;
     std::shared_ptr<ActiveEntityState> Target;
-    int32_t Weight;
+    float Score;
   };
 
   std::list<Choice> heals, supports, attacks;
@@ -2939,6 +2940,45 @@ bool AIManager::PartnerAssistAct(
   const static std::set<uint16_t> excludedFIDs = {
       SVR_CONST.SKILL_DESPAWN, SVR_CONST.SKILL_DIGITALIZE_BREAK,
       SVR_CONST.SKILL_MINION_SPAWN, SVR_CONST.SKILL_SUICIDE};
+
+  float ownerHPPct = cState->GetMaxHP() > 0
+                         ? (float)ccs->GetHP() / (float)cState->GetMaxHP()
+                         : 1.f;
+  float selfHPPct = dState->GetMaxHP() > 0
+                        ? (float)dcs->GetHP() / (float)dState->GetMaxHP()
+                        : 1.f;
+  float mpPct = dState->GetMaxMP() > 0
+                    ? (float)dcs->GetMP() / (float)dState->GetMaxMP()
+                    : 1.f;
+
+  // Count the enemies an area skill would hit around a point
+  auto enemiesAround = [&](float x, float y, double radius) {
+    int32_t count = 0;
+    for (auto& e : zone->GetActiveEntitiesInRadius(x, y, radius, true)) {
+      if (validEnemy(e)) {
+        count++;
+      }
+    }
+    return count > 0 ? count : 1;
+  };
+
+  // True if every status the skill adds is already on the target, so
+  // casting it again would be wasted
+  auto statusesActive = [](const std::shared_ptr<objects::MiSkillData>& def,
+                           const std::shared_ptr<ActiveEntityState>& t) {
+    auto adds = def->GetDamage()->GetAddStatuses();
+    if (adds.empty()) {
+      return false;
+    }
+
+    for (auto& add : adds) {
+      if (add && add->GetStatusID() && !t->StatusEffectActive(add->GetStatusID())) {
+        return false;
+      }
+    }
+
+    return true;
+  };
 
   for (uint32_t skillID : dState->GetCurrentSkills()) {
     auto def = definitionManager->GetSkillData(skillID);
@@ -2962,30 +3002,38 @@ bool AIManager::PartnerAssistAct(
       continue;
     }
 
-    // Rotate through the demon's skills: skills not used for a while are
-    // preferred so slow-charging skills get their turn too
-    int32_t weight = 2;
-    auto usedIt = pa.SkillUsed.find(skillID);
-    if (usedIt == pa.SkillUsed.end() ||
-        usedIt->second + 15000000ULL <= now) {
-      weight += 4;
-    }
-
     auto validType = def->GetRange()->GetValidType();
     auto actionType = def->GetBasic()->GetActionType();
+    auto battleDamage = def->GetDamage()->GetBattleDamage();
+    float power = (float)battleDamage->GetModifier1();
+    uint32_t chargeTime = def->GetCast()->GetBasic()->GetChargeTime();
+
     bool isHeal = false;
     if (actionType == objects::MiSkillBasicData::ActionType_t::SUPPORT) {
-      auto battleDamage = def->GetDamage()->GetBattleDamage();
       switch (battleDamage->GetFormula()) {
         case objects::MiBattleDamageData::Formula_t::HEAL_NORMAL:
         case objects::MiBattleDamageData::Formula_t::HEAL_MAX_PERCENT:
         case objects::MiBattleDamageData::Formula_t::HEAL_STATIC:
-          isHeal = battleDamage->GetModifier1() != 0;
+          isHeal = power != 0.f;
           break;
         default:
           break;
       }
     }
+
+    // Shared adjustments: do not repeat the last skills right away, keep
+    // MP for heals when running low, and slow casts must earn their wait
+    float adjust = 1.f;
+    auto usedIt = pa.SkillUsed.find(skillID);
+    if (usedIt != pa.SkillUsed.end() && usedIt->second + 4000000ULL > now) {
+      adjust *= 0.5f;
+    }
+
+    if (mpCost > 0 && mpPct < 0.3f && !isHeal) {
+      adjust *= 0.3f;
+    }
+
+    adjust /= 1.f + (float)chargeTime / 4000.f;
 
     switch (validType) {
       case objects::MiEffectiveRangeData::ValidType_t::ENEMY: {
@@ -2993,19 +3041,67 @@ bool AIManager::PartnerAssistAct(
           break;
         }
 
+        // Skip affinities the enemy nulls, reflects or absorbs and weigh
+        // the rest by its resistance (weaknesses score higher)
+        uint8_t affinity = def->GetCommon()->GetAffinity();
+        bool blocked = false;
+        for (uint8_t nraIdx = 1; nraIdx <= 3; nraIdx++) {
+          if (enemy->GetNRAChance(nraIdx,
+                                  (CorrectTbl)(affinity +
+                                               (uint8_t)CorrectTbl::NRA_DEFAULT)) >=
+              50) {
+            blocked = true;
+          }
+        }
+
+        if (blocked) {
+          break;
+        }
+
+        float resist =
+            (float)enemy->GetCorrectValue(
+                (CorrectTbl)(affinity + (uint8_t)CorrectTbl::RES_DEFAULT)) *
+            0.01f;
+        float affinityMult = 1.f - resist;
+        if (affinityMult < 0.1f) {
+          break;
+        }
+
+        // Area skills score per enemy they would hit
+        float hits = 1.f;
+        auto range = def->GetRange();
+        double aoe = (double)(range->GetAoeRange() * 10);
+        switch (range->GetAreaType()) {
+          case objects::MiEffectiveRangeData::AreaType_t::SOURCE_RADIUS:
+          case objects::MiEffectiveRangeData::AreaType_t::SOURCE_RADIUS2:
+            hits = (float)enemiesAround(dState->GetCurrentX(),
+                                        dState->GetCurrentY(),
+                                        aoe + dState->GetHitboxSize() * 10);
+            break;
+          case objects::MiEffectiveRangeData::AreaType_t::TARGET_RADIUS:
+            hits = (float)enemiesAround(enemy->GetCurrentX(),
+                                        enemy->GetCurrentY(), aoe);
+            break;
+          default:
+            break;
+        }
+
         switch (actionType) {
           case objects::MiSkillBasicData::ActionType_t::ATTACK:
           case objects::MiSkillBasicData::ActionType_t::RUSH:
           case objects::MiSkillBasicData::ActionType_t::SPIN:
           case objects::MiSkillBasicData::ActionType_t::SHOT:
-          case objects::MiSkillBasicData::ActionType_t::RAPID:
-            // Costly skills hit harder, prefer them a little
-            attacks.push_back({def, enemy, weight + (mpCost > 0 ? 1 : 0)});
-            break;
+          case objects::MiSkillBasicData::ActionType_t::RAPID: {
+            float base = power > 0.f ? power : 50.f;
+            attacks.push_back(
+                {def, enemy,
+                 base * affinityMult * (1.f + 0.6f * (hits - 1.f)) * adjust});
+          } break;
           case objects::MiSkillBasicData::ActionType_t::SUPPORT:
-            // Debuffs, throttled like buffs
-            if (pa.SupportUsed[skillID] + buffWait <= now) {
-              supports.push_back({def, enemy, weight});
+            // Debuffs: once per buff interval and not if already applied
+            if (pa.SupportUsed[skillID] + buffWait <= now &&
+                !statusesActive(def, enemy)) {
+              supports.push_back({def, enemy, 100.f * hits * adjust});
             }
             break;
           default:
@@ -3019,23 +3115,37 @@ bool AIManager::PartnerAssistAct(
           break;
         }
 
-        // Ally skills go on the owner when possible, others on the demon
-        std::shared_ptr<ActiveEntityState> target = dState;
-        if (validType == objects::MiEffectiveRangeData::ValidType_t::ALLY &&
-            skillManager->TargetInRange(dState, def, cState)) {
-          target = cState;
-        }
+        bool party =
+            validType == objects::MiEffectiveRangeData::ValidType_t::PARTY;
+        bool canReachOwner =
+            validType == objects::MiEffectiveRangeData::ValidType_t::ALLY &&
+            skillManager->TargetInRange(dState, def, cState);
 
         if (isHeal) {
-          if (ownerHurt &&
-              (target == cState ||
-               validType == objects::MiEffectiveRangeData::ValidType_t::PARTY)) {
-            heals.push_back({def, target, weight + 2});
-          } else if (selfHurt) {
-            heals.push_back({def, dState, weight});
+          // Heal whoever is lower; party heals score for both
+          float need = 0.f;
+          std::shared_ptr<ActiveEntityState> target;
+          if (ownerHurt && (canReachOwner || party)) {
+            need += 1.5f * (1.f - ownerHPPct);
+            target = canReachOwner ? cState : dState;
+          }
+
+          if (selfHurt && (party || !canReachOwner || !ownerHurt)) {
+            need += 1.f - selfHPPct;
+            if (!target) {
+              target = dState;
+            }
+          }
+
+          if (target && need > 0.f) {
+            heals.push_back({def, target, power * need * adjust});
           }
         } else if (inCombat && pa.SupportUsed[skillID] + buffWait <= now) {
-          supports.push_back({def, target, weight});
+          auto target = canReachOwner ? cState : dState;
+          if (!statusesActive(def, target)) {
+            supports.push_back({def, target, 100.f * (party ? 1.5f : 1.f) *
+                                                 adjust});
+          }
         }
       } break;
       default:
@@ -3047,7 +3157,7 @@ bool AIManager::PartnerAssistAct(
   std::list<Choice>* pick = nullptr;
   if (heals.size()) {
     pick = &heals;
-  } else if (supports.size() && (attacks.empty() || RNG(int32_t, 1, 10) <= 4)) {
+  } else if (supports.size() && (attacks.empty() || RNG(int32_t, 1, 10) <= 3)) {
     pick = &supports;
   } else if (attacks.size()) {
     pick = &attacks;
@@ -3097,18 +3207,14 @@ bool AIManager::PartnerAssistAct(
     return false;
   }
 
-  int32_t total = 0;
-  for (auto& c : *pick) {
-    total += c.Weight;
-  }
-
-  int32_t roll = RNG(int32_t, 1, total);
+  // Best score wins, with a little randomness between close options
   Choice choice = pick->front();
+  float best = -1.f;
   for (auto& c : *pick) {
-    roll -= c.Weight;
-    if (roll <= 0) {
+    float score = c.Score * (0.9f + 0.2f * (float)RNG(int32_t, 0, 100) / 100.f);
+    if (score > best) {
+      best = score;
       choice = c;
-      break;
     }
   }
 
@@ -3178,4 +3284,13 @@ bool AIManager::PartnerAssistBusy(
 
   // New skills are blocked; cancels only for the assist's own skill
   return activationID == -1 || activationID == pa.ActivationID;
+}
+
+bool AIManager::PartnerAssistOwnsSkills() {
+  auto server = mServer.lock();
+  auto conf = server ? std::dynamic_pointer_cast<objects::ChannelConfig>(
+                           server->GetConfig())
+                     : nullptr;
+  return conf && conf->GetPartnerCombatAssist() &&
+         conf->GetPartnerAssistOwnSkills();
 }

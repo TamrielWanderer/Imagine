@@ -112,6 +112,7 @@
 #include <WorldSharedConfig.h>
 
 // channel Includes
+#include "AIManager.h"
 #include "AIState.h"
 #include "ActionManager.h"
 #include "ChannelServer.h"
@@ -504,7 +505,11 @@ void CharacterManager::SendPartnerData(
   reply.WriteFloat(dState->GetDestinationRotation());
 
   reply.WriteU8(0);  // Unknown bool
-  reply.WriteU16Little(d->GetAttackSettings());
+  // With the partner assist running the demon's skills, the client's own
+  // demon AI is told to use none
+  reply.WriteU16Little(mServer.lock()->GetAIManager()->PartnerAssistOwnsSkills()
+                           ? (uint16_t)0
+                           : d->GetAttackSettings());
   reply.WriteU8(d->GetGrowthType());
   reply.WriteU16Little(d->GetFamiliarity());
   reply.WriteU8(d->GetLocked() ? 1 : 0);
@@ -678,7 +683,11 @@ void CharacterManager::SendDemonData(
     reply.WriteS16Little(iSkill->GetProgress());
   }
 
-  reply.WriteU16Little(d->GetAttackSettings());
+  // With the partner assist running the demon's skills, the client's own
+  // demon AI is told to use none
+  reply.WriteU16Little(mServer.lock()->GetAIManager()->PartnerAssistOwnsSkills()
+                           ? (uint16_t)0
+                           : d->GetAttackSettings());
   reply.WriteU8(d->GetGrowthType());
   reply.WriteU16Little(d->GetFamiliarity());
   reply.WriteU8(d->GetLocked() ? 1 : 0);
