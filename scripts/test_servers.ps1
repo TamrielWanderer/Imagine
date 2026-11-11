@@ -11,7 +11,8 @@ $run   = Join-Path $build 'servertest'
 $sum   = Join-Path $run 'servertest_summary.log'
 
 if (Test-Path $run) { Remove-Item -Recurse -Force $run }
-New-Item -ItemType Directory -Path $run, "$run\config", "$run\unittests" | Out-Null
+# The test configs log to log\ (the servers exit if they cannot open their log file).
+New-Item -ItemType Directory -Path $run, "$run\config", "$run\unittests", "$run\log", "$run\captures" | Out-Null
 function Say($t) { $t | Out-File -FilePath $sum -Append -Encoding utf8; Write-Host $t }
 "=== servertest $(Get-Date -Format s) ($build)" | Out-File -FilePath $sum -Encoding utf8
 
