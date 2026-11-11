@@ -19,3 +19,7 @@ tools/sandman
 
 # Annoying mac files
 .DS_Store
+
+# Local server created by scripts/start_server.ps1
+local-server/
+scripts/*.log

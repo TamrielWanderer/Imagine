@@ -50,4 +50,6 @@ make
 
 Edit the paths at the top of _vsbuild_x64.bat_ (or _vsbuild_x86.bat_ for 32-bit) to point to your Qt and OpenSSL installs. Run the script and you should see a _build64_ (or _build32_) folder containing a comp_hack.sln solution file. Open the solution in Visual Studio 2026 and build as normal.
 
+To build from the command line instead, and to run a local server that the game client can log in to, see [scripts/README.md](scripts/README.md).
+
 If the newer compiler rejects any of the older bundled code, install the "MSVC v143 - VS 2022 C++ build tools" component from the Visual Studio Installer, set `TOOLSET=v143` at the top of the batch file, and run it again from a clean build folder.
