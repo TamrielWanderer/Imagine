@@ -22,6 +22,6 @@
         <member type="u16" name="PartnerAssistInterval" default="1500"/>
         <member type="u8" name="PartnerAssistHealPercent" default="50"/>
         <member type="u16" name="PartnerAssistBuffInterval" default="60"/>
-        <member type="bool" name="PartnerAssistChase" default="true"/>
+        <member type="bool" name="PartnerAssistChase" default="false"/>
     </object>
 </objgen>
