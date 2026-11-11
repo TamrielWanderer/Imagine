@@ -11,9 +11,13 @@
 # On the first run (empty database) an admin account (UserLevel 1000) with a
 # random password is created and saved to <server dir>/admin_account.txt.
 # Summary: <server dir>/server_start.log. Server output: <server dir>/logs.
+# LAN play: -LanIP auto (or an address like 192.168.1.20) makes the channel
+# server advertise that address instead of 127.0.0.1, so clients on other PCs
+# can connect. Remembered in <server dir>/lan_ip.txt; -LanIP off turns it off.
 param(
     [string]$ClientDir = '',
-    [string]$ClientVersion = '2.032'   # ReIMAGINE client; the original client is 1.666
+    [string]$ClientVersion = '2.032',  # ReIMAGINE client; the original client is 1.666
+    [string]$LanIP = ''
 )
 $ErrorActionPreference = 'Continue'
 . "$PSScriptRoot\common.ps1"
@@ -34,6 +38,20 @@ if (-not $ClientDir -or -not (Test-Path (Join-Path $ClientDir 'BinaryData'))) {
     exit 1
 }
 Set-Content -Path $clientFile -Value $ClientDir -Encoding utf8
+
+# LAN address to advertise for the channel server (empty = this PC only).
+$lanFile = Join-Path $srv 'lan_ip.txt'
+if (-not $LanIP -and (Test-Path $lanFile)) { $LanIP = (Get-Content $lanFile -First 1).Trim() }
+if ($LanIP -eq 'off') {
+    Remove-Item -Force -ErrorAction SilentlyContinue $lanFile
+    $LanIP = ''
+} elseif ($LanIP -eq 'auto') {
+    # IPv4 address of the adapter that has the default gateway (the LAN one).
+    $LanIP = @((Get-NetIPConfiguration | Where-Object { $_.IPv4DefaultGateway -and $_.NetAdapter.Status -eq 'Up' } |
+        Select-Object -First 1).IPv4Address.IPAddress)[0]
+    if (-not $LanIP) { Say 'Could not detect the LAN address; pass it with -LanIP <address>.'; exit 1 }
+}
+if ($LanIP) { Set-Content -Path $lanFile -Value $LanIP -Encoding utf8 }
 if (-not (Test-Path (Join-Path $bin 'comp_lobby.exe'))) {
     Say "No Release build found in $build. Build first (vs2026_build.bat) or set IMAGINE_BUILD_DIR."
     exit 1
@@ -58,6 +76,9 @@ foreach ($f in 'lobby.xml', 'world.xml', 'channel.xml', 'newcharacter.xml') {
     $text = $text -replace '<member name="WebRoot">webroot</member>', "<member name=`"WebRoot`">$web</member>"
     $text = $text -replace '<member name="Name">Some Server</member>', '<member name="Name">Local World</member>'
     $text = $text -replace '<member name="Name">Some Channel</member>', '<member name="Name">Local Channel</member>'
+    if ($f -eq 'channel.xml' -and $LanIP) {
+        $text = $text -replace '(<member name="DatabaseType">SQLITE3</member>)', "`$1`r`n        <member name=`"ExternalIP`">$LanIP</member>"
+    }
     if ($f -eq 'lobby.xml') {
         $text = $text -replace '(<member name="DatabaseType">SQLITE3</member>)', "`$1`r`n        <member name=`"ClientVersion`">$ClientVersion</member>"
     }
@@ -82,6 +103,11 @@ if (-not (Test-Path "$srv\admin_account.txt")) {
 }
 Say "build: $build"
 Say "data:  $ds | $client"
+if ($LanIP) {
+    Say "LAN:   channel advertised as $LanIP (other PCs: set -ip $LanIP in ImagineClient.dat)"
+} else {
+    Say 'LAN:   off (this PC only; use -LanIP auto for LAN play)'
+}
 
 $servers = @(
     @{ name = 'lobby';   exe = 'comp_lobby.exe';   timeout = 120 },
@@ -117,4 +143,15 @@ foreach ($port in 10666, 10999, 18666, 14666) {
 }
 Select-String -Path "$srv\logs\*.out.log" -Pattern 'ERROR|CRITICAL' |
     ForEach-Object { Say ("[{0}] {1}" -f $_.Filename, $_.Line) }
+# Update server for the game launcher, when something has been published.
+Get-CimInstance Win32_Process -Filter "Name='powershell.exe'" |
+    Where-Object { $_.CommandLine -like '*serve_update.ps1*' } |
+    ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+if (Test-Path (Join-Path $srv 'update\files\hashlist.ver')) {
+    Start-Process powershell -WindowStyle Hidden -ArgumentList @('-NoProfile', '-ExecutionPolicy', 'Bypass',
+        '-File', "`"$PSScriptRoot\serve_update.ps1`"")
+    Start-Sleep -Seconds 2
+    $updHost = if ($LanIP) { $LanIP } else { '127.0.0.1' }
+    Say "update server: http://${updHost}:10080/ (listening: $([bool](Get-NetTCPConnection -LocalPort 10080 -State Listen -ErrorAction SilentlyContinue)))"
+}
 Say 'Servers are running. Stop them with stop_server.bat.'

@@ -84,4 +84,39 @@ These scripts run a lobby, world and channel server on your PC that a game clien
 
 4. **Stop the servers.** `scripts\stop_server.bat`.
 
+### Playing over the LAN or the Internet ###
+
+By default the servers only accept the client on the same PC. The channel server tells clients which address to connect to, so it has to advertise an address the other players can reach.
+
+**LAN (other PCs on your network)**
+
+1. Start the servers with `scripts\start_server.bat -LanIP auto`. It detects this PC's LAN address (or pass one, e.g. `-LanIP 192.168.1.20`). The address is remembered in _local-server\lan_ip.txt_, and `-LanIP off` goes back to this PC only. _local-server\server_start.log_ shows the address in use.
+2. Open the firewall once, from an administrator PowerShell: `powershell -ExecutionPolicy Bypass -File scripts\allow_lan_firewall.ps1`. It allows TCP 10666 (lobby), 14666 (channel), 10999 (lobby web API) and 10080 (launcher updates) on Private networks, and removes Block rules Windows saved for the server programs if a firewall prompt was cancelled. Your network must be set to Private in Windows settings. `-Remove` undoes it.
+3. On each other PC, set `-ip <server address>` in the client's _ImagineClient.dat_ (keep `-port 10666`).
+4. Accounts: run `scripts\create_test_account.bat` on the server PC, or register through `http://<server address>:10999/api/account/register`.
+
+**Internet**
+
+1. Give the server PC a fixed LAN address, then forward TCP 10666, 14666, 10999 and 10080 from your router to it. Port 18666 (world) stays internal.
+2. Start the servers with `-LanIP <your public IP address>`. The channel server then advertises the public address. If your public address changes, start again with the new one (or use a static address).
+3. Open the firewall as for the LAN (step 2 above). If Windows classifies the connection as Public, add the same ports for the Public profile.
+4. Players set `-ip <your public IP address>` in _ImagineClient.dat_.
+5. Players on your own network may not be able to use the public address (many routers don't support NAT loopback). They can keep using the LAN address with `-ip`, but the channel address is the public one, so test from outside your network too.
+
+Opening ports exposes the servers to anyone. Account registration through the web API is open, and the admin account from _local-server\admin_account.txt_ has full rights, so keep that file private.
+
+### Client updates through the launcher ###
+
+The game launcher (_ImagineUpdate.exe_) downloads changed client files from an update server before starting the game. The server PC can be that update server, so players get new translations and other client fixes automatically.
+
+1. **Publish files.** `scripts\publish_update.bat -Add BinaryData\Shield\CHelpData.sbin,BinaryData\Client` takes paths relative to the client folder (files or whole folders) and copies them from the client folder into _local-server\update\patch_. You can also drop files there by hand, in the same layout as the client folder. Everything in that folder is published: `comp_rehash` writes compressed copies and the file list (_hashlist.dat_, _hashlist.ver_) to _local-server\update\files_. `-Clear` empties the patch folder first.
+2. **Serve them.** `scripts\start_server.bat` also starts the update server (HTTP on TCP 10080) whenever something is published, and `scripts\stop_server.bat` stops it. You can also run `scripts\serve_update.bat` on its own. Requests are logged to _local-server\logs\update_server.log_.
+3. **Point launchers at it.** `scripts\set_update_url.bat` sets `BaseURL1` in this PC's _ImagineUpdate.dat_ to `http://<LAN address>:10080/`. On other PCs, edit `BaseURL1` in _ImagineUpdate.dat_ to `http://<server address>:10080/` (the LAN or public address, as for `-ip`). `set_update_url.bat -Restore` goes back to the original file, which is kept as _ImagineUpdate.dat.reimagine_.
+
+Launchers download a file only if its checksum differs from the player's copy, so publishing a whole folder costs nothing for files players already have. Files you don't publish are never touched. Pointing a launcher at your server replaces the official update server, so the official ReIMAGINE updates stop reaching that client. For a public release, any web server can host the _local-server\update\files_ folder instead.
+
+### English translation of the client ###
+
+`scripts\apply_translation.bat` translates the menus and system text that the client still shows in Japanese (about 2,400 strings). It patches your client's _BinaryData_ files and keeps the originals in _BinaryData_jp_backup_. Publish the changed files with the updater to give them to other players. Details and the table format are in [contrib/translation/README.md](contrib/translation/README.md).
+
 More details and troubleshooting notes are in [scripts/README.md](scripts/README.md).
