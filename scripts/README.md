@@ -79,6 +79,22 @@ The server reads the client's `BinaryData` and `Map` folders directly.
 
 4. **Stop the servers:** `stop_server.bat`.
 
+## 5. Play over the LAN (other PCs)
+
+1. Start the servers in LAN mode once: `start_server.bat -LanIP auto` (or
+   `-LanIP 192.168.1.20` to pick the address yourself). The address is
+   remembered in `local-server\lan_ip.txt`; `-LanIP off` goes back to
+   this-PC-only. `local-server\server_start.log` shows the address used.
+2. Open the firewall: in an administrator PowerShell, run
+   `powershell -ExecutionPolicy Bypass -File scripts\allow_lan_firewall.ps1`.
+   It removes Block rules Windows saved for the server programs (from a
+   cancelled firewall prompt) and allows TCP 10666, 14666, 10999 and 10080
+   on Private networks. Your network must be set to Private. `-Remove` undoes it.
+3. On the other PC, set `-ip <server address>` in the client's
+   `ImagineClient.dat` (keep `-port 10666`) and start the client.
+4. Accounts: run `create_test_account.bat` on the server PC, or call
+   `http://<server address>:10999/api/account/register` from the other PC.
+
 ## Notes
 
 - The lobby waits at an interactive `Username:` prompt if its database has
@@ -89,3 +105,35 @@ The server reads the client's `BinaryData` and `Map` folders directly.
   `MD01_002_02t.qmp` zone geometry file.
 - Do not set an environment variable named `RC` before building; Visual
   Studio treats it as the resource compiler.
+
+## 6. Client updates through the launcher
+
+Players' launchers (`ImagineUpdate.exe`) can download changed client files
+from your server before the game starts.
+
+1. Publish: `publish_update.ps1 -Add BinaryData\Shield\CHelpData.sbin, ...`
+   (paths relative to the client folder; folders work too). Files collect in
+   `local-server\update\patch`; `-Clear` empties it first. It runs
+   `comp_rehash` and writes the downloadable set to `local-server\update\files`.
+2. Serve: `start_server.ps1` starts `serve_update.ps1` (HTTP, TCP 10080) in the
+   background whenever something is published; `stop_server.ps1` stops it.
+   Other PCs need 10080 open: re-run `allow_lan_firewall.ps1` as admin.
+3. Point launchers at it: `set_update_url.ps1` on this PC (uses `lan_ip.txt`),
+   or on another PC set `BaseURL1 = http://<server LAN IP>:10080/` in its
+   `ImagineUpdate.dat`. `set_update_url.ps1 -Restore` goes back to the official
+   ReIMAGINE update server (the original is kept as `ImagineUpdate.dat.reimagine`).
+
+Launchers only download files whose checksum differs from their own copy.
+Only the files you publish are managed; nothing else in the client is touched.
+
+## 7. English translation
+
+`apply_translation.bat` (needs Python 3) translates the client's menus and
+system text using `contrib\translation\menus_system.json`. It uses the
+remembered client folder (or `-ClientDir <folder>`), keeps the originals in
+`<client>\BinaryData_jp_backup`, and `-Check` only counts what would change.
+Then publish the changed files (step 6) so other players get them.
+
+For Internet play, see "Playing over the LAN or the Internet" in the main
+README: forward TCP 10666, 14666, 10999 and 10080 and start with
+`-LanIP <public IP address>`.
