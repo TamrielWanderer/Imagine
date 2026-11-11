@@ -36,6 +36,7 @@
 #include <Item.h>
 
 // channel Includes
+#include "AIManager.h"
 #include "ChannelServer.h"
 #include "SkillManager.h"
 
@@ -82,6 +83,12 @@ bool Parsers::SkillActivate::Parse(
   } else if (!source->Ready(true)) {
     // Entity is not currently active, send generic failure
     skillManager->SendFailure(source, skillID, client);
+    return true;
+  } else if (source != state->GetCharacterState() &&
+             server->GetAIManager()->PartnerAssistBusy(source)) {
+    // The partner assist is charging a skill on the demon, keep it
+    skillManager->SendFailure(source, skillID, client,
+                              (uint8_t)SkillErrorCodes_t::SILENT_FAIL);
     return true;
   }
 

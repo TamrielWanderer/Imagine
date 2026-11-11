@@ -31,6 +31,7 @@
 #include <ManagerPacket.h>
 
 // channel Includes
+#include "AIManager.h"
 #include "ChannelServer.h"
 #include "SkillManager.h"
 
@@ -64,6 +65,12 @@ bool Parsers::SkillCancel::Parse(
     });
 
     client->Close();
+    return true;
+  }
+
+  if (source != state->GetCharacterState() &&
+      server->GetAIManager()->PartnerAssistBusy(source, activationID)) {
+    // The partner assist is charging this skill on the demon, keep it
     return true;
   }
 

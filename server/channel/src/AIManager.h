@@ -283,6 +283,17 @@ class AIManager {
   bool Circle(const std::shared_ptr<ActiveEntityState>& eState, float x,
               float y, bool interrupt = false, float distance = 800.f);
 
+  /**
+   * Check if the partner assist is charging a skill on the demon. While it
+   * is, skill activations and cancels the client sends for the demon are
+   * ignored so the client's own demon AI cannot replace the skill.
+   * @param dState Pointer to the partner demon state
+   * @param activationID Activation being cancelled, or -1 for a new skill
+   * @return true if the client request should be ignored
+   */
+  bool PartnerAssistBusy(const std::shared_ptr<ActiveEntityState>& dState,
+                         int8_t activationID = -1);
+
  private:
   /**
    * Update the state of an entity, processing AI and performing other
@@ -520,6 +531,8 @@ class AIManager {
     uint64_t NextThink = 0;
     uint64_t LastSeen = 0;
     int32_t EngageID = 0;
+    uint64_t PendingUntil = 0;
+    std::unordered_map<uint32_t, uint64_t> SkillUsed;
     uint64_t EngageUntil = 0;
     std::unordered_map<uint32_t, uint64_t> SupportUsed;
   };

@@ -2962,9 +2962,13 @@ bool AIManager::PartnerAssistAct(
       continue;
     }
 
+    // Rotate through the demon's skills: skills not used for a while are
+    // preferred so slow-charging skills get their turn too
     int32_t weight = 2;
-    if (!def->GetCast()->GetBasic()->GetChargeTime()) {
-      weight += 1;
+    auto usedIt = pa.SkillUsed.find(skillID);
+    if (usedIt == pa.SkillUsed.end() ||
+        usedIt->second + 15000000ULL <= now) {
+      weight += 4;
     }
 
     auto validType = def->GetRange()->GetValidType();
@@ -2996,7 +3000,7 @@ bool AIManager::PartnerAssistAct(
           case objects::MiSkillBasicData::ActionType_t::SHOT:
           case objects::MiSkillBasicData::ActionType_t::RAPID:
             // Costly skills hit harder, prefer them a little
-            attacks.push_back({def, enemy, weight + (mpCost > 0 ? 2 : 0)});
+            attacks.push_back({def, enemy, weight + (mpCost > 0 ? 1 : 0)});
             break;
           case objects::MiSkillBasicData::ActionType_t::SUPPORT:
             // Debuffs, throttled like buffs
@@ -3123,6 +3127,7 @@ bool AIManager::PartnerAssistAct(
     return false;
   }
 
+  pa.SkillUsed[skillID] = now;
   if (pick != &attacks) {
     pa.SupportUsed[skillID] = now;
   }
@@ -3141,8 +3146,36 @@ bool AIManager::PartnerAssistAct(
     } else {
       pa.ActivationID = activated->GetActivationID();
       pa.TargetID = targetID;
+      // Hold the skill against client changes until shortly after it
+      // finishes charging
+      pa.PendingUntil = activated->GetChargedTime() + 3000000ULL;
     }
   }
 
   return true;
+}
+
+bool AIManager::PartnerAssistBusy(
+    const std::shared_ptr<ActiveEntityState>& dState, int8_t activationID) {
+  if (!dState) {
+    return false;
+  }
+
+  std::lock_guard<std::mutex> lock(mPartnerAssistLock);
+
+  auto it = mPartnerAssist.find(dState->GetEntityID());
+  if (it == mPartnerAssist.end() || it->second.ActivationID < 0) {
+    return false;
+  }
+
+  auto& pa = it->second;
+  auto activated = dState->GetActivatedAbility();
+  if (!activated || activated->GetActivationID() != pa.ActivationID ||
+      activated->GetExecutionRequestTime() || activated->GetExecutionTime() ||
+      pa.PendingUntil <= ChannelServer::GetServerTime()) {
+    return false;
+  }
+
+  // New skills are blocked; cancels only for the assist's own skill
+  return activationID == -1 || activationID == pa.ActivationID;
 }
