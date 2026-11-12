@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Patch the ReIMAGINE client's partner demon AI timings.
+"""Patch the ReIMAGINE client's partner demon AI (timings and skill choice).
 
     partner_ai_patch.py <ImagineClient.exe> [--out patched.exe] [--revert] [--check]
 
@@ -28,20 +28,64 @@ import sys
 IMAGE_BASE = 0x400000
 EXPECTED_SIZE = 23429120
 
-# (virtual address of the 32-bit immediate, original, patched, description)
+def u32(v):
+    return struct.pack('<I', v)
+
+
+# Skill-picker category order (see docs/client-partner-ai-notes.md). The
+# client walks categories 1..13 and uses the first that yields a skill:
+#   1, 2 (owner/target related), 5 revive, 6 cure ailments, 7 heal below 60%,
+#   10 cure itself, 11 self skills, 12 attack the target, 13 owner support.
+# Originally attacks (12) came after 10 and 11, so a demon with a usable
+# self skill rarely attacked. New order: emergencies first, then attack,
+# then buffs.
+CATEGORY_ORDER = [5, 6, 7, 1, 2, 12, 10, 11, 13]
+
+
+def picker_cave():
+    """Code cave at 0x638b20 (padding after the picker): load the next
+    category from a table instead of counting 1..13."""
+    table_va = 0x638b40
+    code = bytearray()
+    code += bytes.fromhex('0fb6442454')              # movzx eax, byte [esp+54h]
+    code += b'\x8a\x80' + u32(table_va)              # mov al, [eax+table]
+    code += bytes.fromhex('8b5c2410')                # mov ebx, [esp+10h]
+    code += bytes.fromhex('88442454')                # mov [esp+54h], al
+    code += bytes.fromhex('84c0')                    # test al, al
+    here = 0x638b20 + len(code)
+    code += b'\x0f\x85' + struct.pack('<i', 0x6371c0 - (here + 6))  # jnz loop
+    here = 0x638b20 + len(code)
+    code += b'\xe9' + struct.pack('<i', 0x638ab7 - (here + 5))       # jmp done
+    code += b'\xcc' * (table_va - 0x638b20 - len(code))
+    table = bytearray(14)
+    for cur, nxt in zip(CATEGORY_ORDER, CATEGORY_ORDER[1:] + [0]):
+        table[cur] = nxt
+    return bytes(code + table)
+
+
+_CAVE = picker_cave()
+
+# (virtual address, original bytes, patched bytes, description)
 PATCHES = [
-    (0x634625 + 1, 1500, 500,
+    (0x634626, u32(1500), u32(500),
      'pause after the demon finishes an action, message 0x95 (ms)'),
-    (0x6347b1 + 1, 1500, 500,
+    (0x6347b2, u32(1500), u32(500),
      'pause after message 0x1c6 (ms)'),
-    (0x634769 + 1, 4000, 2000,
+    (0x63476a, u32(4000), u32(2000),
      'pause after message 0xca (ms)'),
-    (0x634894 + 1, 2000, 1000,
+    (0x634895, u32(2000), u32(1000),
      'pause after message 0x10f on the demon (ms)'),
-    (0x634826 + 1, 5000, 2500,
+    (0x634827, u32(5000), u32(2500),
      'pause after message 0x115 type 6 on the demon (ms)'),
-    (0x639e4c + 1, 15000, 5000,
+    (0x639e4d, u32(15000), u32(5000),
      'time before the demon looks for a new target (ms)'),
+    (0x6371ba, b'\x01', bytes([CATEGORY_ORDER[0]]),
+     'skill picker: first category'),
+    (0x638aa1, bytes.fromhex('8a4424548b5c2410fec03c0e884424540f8c09e7ffff'),
+     b'\xe9' + struct.pack('<i', 0x638b20 - (0x638aa1 + 5)) + b'\x90' * 17,
+     'skill picker: jump to the category order table'),
+    (0x638b20, b'\xcc' * len(_CAVE), _CAVE,
+     'skill picker: category order ' + ','.join(map(str, CATEGORY_ORDER))),
 ]
 
 
@@ -111,22 +155,25 @@ def main():
     state = []
     for va, orig, new, desc in PATCHES:
         off = file_offset(data, va)
-        cur = struct.unpack_from('<I', data, off)[0]
+        cur = bytes(data[off:off + len(orig)])
         if cur not in (orig, new):
-            sys.exit(f'{va:#x}: found {cur}, expected {orig} or {new}; '
-                     'not the supported client build, nothing changed')
-        state.append((off, cur, orig, new, desc))
+            sys.exit(f'{va:#x}: unexpected bytes; not the supported client '
+                     'build, nothing changed')
+        state.append((off, cur == new, orig, new, desc))
 
-    patched = sum(1 for s in state if s[1] == s[3])
+    patched = sum(1 for s in state if s[1])
     print(f'{patched}/{len(state)} patches applied in {a.exe}')
-    for off, cur, orig, new, desc in state:
-        print(f'  {desc}: {cur}' + ('' if cur == orig else f' (original {orig})'))
+    for off, done, orig, new, desc in state:
+        value = ''
+        if len(orig) == 4:
+            value = f': {struct.unpack("<I", new if done else orig)[0]}'
+        print(f'  [{"x" if done else " "}] {desc}{value}')
     if a.check:
         return 0
 
     old_hash = text_sha1(data)
-    for off, cur, orig, new, desc in state:
-        struct.pack_into('<I', data, off, orig if a.revert else new)
+    for off, done, orig, new, desc in state:
+        data[off:off + len(orig)] = orig if a.revert else new
     new_hash = text_sha1(data)
     dll = os.path.join(os.path.dirname(os.path.abspath(a.exe)), 'comp_client.dll')
 

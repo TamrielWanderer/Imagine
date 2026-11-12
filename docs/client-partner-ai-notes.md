@@ -53,12 +53,40 @@ incremental-link thunks (`jmp`), e.g. vtable entry 0x43d456 -> 0x639ce0.
 - 0x639230 Acts on the picked action per demon type (+0x2e0 of the demon
   data selects the branch).
 
+## Skill picker categories (0x636ee0)
+
+Loop counter is the byte at [esp+0x54] (starts at 1, 0x6371b6); the tail at
+0x638aa1 increments it up to 13. Jump table 0x638ad8. Each case builds a
+candidate with 0x402d65 (target nearer than 500) or 0x401519 (farther,
+up to 2500), passing the category number, so the category decides which of
+the demon's skills qualify.
+
+| Cat | Checks (inferred) |
+| --- | --- |
+| 1, 2 | owner / current target, by distance and status effects |
+| 3, 4, 8, 9 | no handler (skipped) |
+| 5 | party members in state 6 (dead): revive |
+| 6 | party members with an ailment (+700): cure |
+| 7 | party members below 60% HP (0.6 at 0x16cc424): heal |
+| 10 | the demon's own status effects |
+| 11 | self skills, no target needed |
+| 12 | attack the current target (+0xa4) |
+| 13 | owner support near the owner |
+
 ## Why the demon feels passive (working theory)
 
 The picker is first-match by category, so whichever early category has a
 usable skill always wins and later ones (often the stronger attacks) are
 never reached. Re-targeting waits up to 15 s, and after each action the AI
 waits 1.5 to 5 s.
+
+## Applied patches (contrib/client-patches/partner_ai_patch.py)
+
+- Six pause/retarget constants shortened.
+- Category order changed to 5,6,7,1,2,12,10,11,13 (attack before self
+  skills and owner buffs): the loop tail jumps to a cave at 0x638b20 that
+  reads the next category from a 14-byte table at 0x638b40.
+- comp_client.dll's expected SHA-1 of .text updated to match.
 
 ## Next steps
 
