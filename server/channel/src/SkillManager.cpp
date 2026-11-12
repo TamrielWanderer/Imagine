@@ -174,6 +174,89 @@ const uint8_t DAMAGE_TYPE_MISS = 3;
 const uint8_t DAMAGE_TYPE_DRAIN = 5;
 const uint8_t DAMAGE_EXPLICIT_SET = 6;
 
+namespace {
+/**
+ * Get the channel config if the experimental stagger rework is enabled.
+ */
+std::shared_ptr<objects::ChannelConfig> GetStaggerConfig(
+    const std::shared_ptr<ChannelServer>& server) {
+  auto conf = server ? std::dynamic_pointer_cast<objects::ChannelConfig>(
+                           server->GetConfig())
+                     : nullptr;
+  return conf && conf->GetStaggerRework() ? conf : nullptr;
+}
+
+/**
+ * Experimental stagger rework: grant Smirk to an entity and tell the
+ * owning player.
+ */
+void GrantSmirk(const std::shared_ptr<ChannelServer>& server,
+                const std::shared_ptr<objects::ChannelConfig>& conf,
+                const std::shared_ptr<ActiveEntityState>& eState,
+                uint64_t now) {
+  if (!eState || !eState->IsAlive()) {
+    return;
+  }
+
+  bool wasActive = eState->HasSmirk(now);
+  eState->SetSmirkUntil(now + (uint64_t)conf->GetSmirkDuration() * 1000ULL);
+
+  if (wasActive || !conf->GetSmirkMessage()) {
+    return;
+  }
+
+  auto eType = eState->GetEntityType();
+  if (eType != EntityType_t::CHARACTER && eType != EntityType_t::PARTNER_DEMON) {
+    return;
+  }
+
+  auto client =
+      server->GetManagerConnection()->GetEntityClient(eState->GetEntityID());
+  if (client) {
+    libcomp::String msg =
+        eType == EntityType_t::CHARACTER
+            ? libcomp::String("Smirk! Your next attack is stronger.")
+            : libcomp::String("Your demon smirks! Its next attack is stronger.");
+    server->GetChatManager()->SendChatMessage(client, ChatType_t::CHAT_SELF,
+                                              msg);
+  }
+}
+
+/**
+ * Experimental stagger rework: apply hit stun with diminishing returns.
+ * Repeated hit stuns in the counting window get shorter and stop after
+ * the configured maximum. Knockbacks count but are not shortened.
+ */
+void ApplyStaggerHitStun(const std::shared_ptr<objects::ChannelConfig>& conf,
+                         const std::shared_ptr<ActiveEntityState>& eState,
+                         uint64_t (&hitTimings)[3], uint64_t now,
+                         uint64_t completeTime, bool knockedBack) {
+  if (conf && !knockedBack) {
+    uint8_t count = eState->RegisterHitStun(
+        now, (uint64_t)conf->GetStaggerStunWindow() * 1000ULL);
+    if (count > 0) {
+      if (conf->GetStaggerStunMax() && count >= conf->GetStaggerStunMax()) {
+        // No more hit stun in this window, just display the results
+        hitTimings[0] = hitTimings[1] = 0;
+        hitTimings[2] = completeTime > now ? completeTime : now;
+        return;
+      }
+
+      double scale = pow((double)conf->GetStaggerStunDecay() * 0.01,
+                         (double)count);
+      for (size_t i = 1; i < 3; i++) {
+        if (hitTimings[i] > now) {
+          hitTimings[i] =
+              now + (uint64_t)((double)(hitTimings[i] - now) * scale);
+        }
+      }
+    }
+  }
+
+  eState->SetStatusTimes(STATUS_HIT_STUN, hitTimings[2]);
+}
+}  // namespace
+
 const uint16_t FLAG1_LETHAL = 1;
 const uint16_t FLAG1_CLENCH = 1 << 2;
 const uint16_t FLAG1_GUARDED = 1 << 3;
@@ -326,6 +409,10 @@ class channel::SkillTargetResult {
   bool AutoProtect = false;
   bool ClenchOverflow = false;
   uint16_t GuardModifier = 0;
+
+  /// Experimental stagger rework: forced hit stun end (attacker staggered
+  /// when its hit is nulled, absorbed or reflected)
+  uint64_t ForcedStunEnd = 0;
 
   uint8_t EffectCancellations = 0;
   std::set<TokuseiConditionType> RecalcTriggers;
@@ -3767,6 +3854,10 @@ void SkillManager::ProcessSkillResultFinal(
   bool hasBattleDamage = damageData->GetBattleDamage()->GetFormula() !=
                          objects::MiBattleDamageData::Formula_t::NONE;
 
+  // Experimental stagger rework settings (null if disabled)
+  auto staggerConf = GetStaggerConfig(server);
+  bool defenseExecution = ctx && ctx->CounteredSkill;
+
   // Get knockback info, we'll need this here to properly set NRA flags
   auto skillKnockback = damageData->GetKnockBack();
   int8_t kbMod = skillKnockback->GetModifier();
@@ -3786,6 +3877,27 @@ void SkillManager::ProcessSkillResultFinal(
     }
 
     SetFinalNRAFlags(pSkill);
+
+    // Experimental stagger rework: Smirk boosts the next damaging skill
+    // (not the counter or dodge that granted it)
+    if (staggerConf && !defenseExecution &&
+        source->HasSmirk(ChannelServer::GetServerTime())) {
+      bool boosted = false;
+      for (SkillTargetResult& target : skill.Targets) {
+        if (target.EntityState != source && !target.HitAvoided &&
+            target.Damage1Type == DAMAGE_TYPE_GENERIC && target.Damage1 > 0) {
+          int32_t cap = target.Damage1 > 9999 ? target.Damage1 : 9999;
+          int64_t dmg = (int64_t)target.Damage1 *
+                        (int64_t)staggerConf->GetSmirkDamagePercent() / 100;
+          target.Damage1 = (int32_t)(dmg > cap ? cap : dmg);
+          boosted = true;
+        }
+      }
+
+      if (boosted) {
+        source->ClearSmirk();
+      }
+    }
 
     // Now that damage is calculated, apply drain
     uint8_t hpDrainPercent = battleDamage->GetHPDrainPercent();
@@ -3929,6 +4041,31 @@ void SkillManager::ProcessSkillResultFinal(
       }
     }
 
+    // Experimental stagger rework: the knockback gauge drain depends on
+    // the affinity result and the target cannot be staggered while
+    // getting up or while Smirk is active
+    bool staggerImmune =
+        staggerConf && target.EntityState->IsStaggerImmune(now);
+    float staggerKbMod = (float)kbMod;
+    if (staggerConf && applyKnockback) {
+      if (staggerImmune) {
+        applyKnockback = false;
+      } else if (!skill.HardStrike) {
+        uint16_t percent = staggerConf->GetStaggerNormalPercent();
+        if ((target.Flags1 & (FLAG1_WEAKPOINT | FLAG1_CRITICAL)) != 0 ||
+            (target.Flags2 & FLAG2_LIMIT_BREAK) != 0) {
+          percent = staggerConf->GetStaggerWeakPercent();
+        } else if ((target.Flags1 & FLAG1_PROTECT) != 0) {
+          percent = staggerConf->GetStaggerResistPercent();
+        }
+
+        staggerKbMod = (float)kbMod * (float)percent * 0.01f;
+        if (staggerKbMod <= 0.f) {
+          applyKnockback = false;
+        }
+      }
+    }
+
     if (applyKnockback) {
       // Check if the source removes knockback
       int32_t kbRemove =
@@ -3948,7 +4085,7 @@ void SkillManager::ProcessSkillResultFinal(
         // Hard strikes are instant knockbacks if we get here, provided the
         // target does not null knockback
         float kb = target.EntityState->UpdateKnockback(
-            now, skill.HardStrike ? -1.f : kbMod, kbRecoverBoost);
+            now, skill.HardStrike ? -1.f : staggerKbMod, kbRecoverBoost);
         if (kb == 0.f) {
           // STATUS_ADD_KNOCKBACK effects will apply, regardless if target
           // nulls knockback
@@ -4127,6 +4264,15 @@ void SkillManager::ProcessSkillResultFinal(
       }
     }
 
+    // Experimental stagger rework: no hit stun while getting up or while
+    // Smirk is active, and resisted hits do not stun unless configured
+    if (staggerConf && target.CanHitstun &&
+        (staggerImmune || (!staggerConf->GetStaggerResistHitStun() &&
+                           (target.Flags1 & FLAG1_PROTECT) != 0 &&
+                           !(target.Flags1 & FLAG1_KNOCKBACK)))) {
+      target.CanHitstun = false;
+    }
+
     // Hitstun or damage counts as a hit cancellation
     if ((target.CanHitstun || hpAdjustedSum < 0) && !target.HitAvoided) {
       target.EffectCancellations |= EFFECT_CANCEL_HIT;
@@ -4181,6 +4327,30 @@ void SkillManager::ProcessSkillResultFinal(
   }
 
   ApplyZoneSpecificEffects(pSkill);
+
+  // Experimental stagger rework: an attack that is nulled, absorbed or
+  // reflected staggers the attacker (the "lost turn" of Press Turn)
+  if (staggerConf && !defenseExecution && hasBattleDamage &&
+      staggerConf->GetStaggerBlockedTime() && source->IsAlive() &&
+      !source->IsStaggerImmune(now)) {
+    bool blocked = false;
+    for (SkillTargetResult& target : skill.Targets) {
+      if (target.EntityState != source &&
+          (target.HitNull || target.HitAbsorb || target.HitReflect)) {
+        blocked = true;
+        break;
+      }
+    }
+
+    if (blocked) {
+      SkillTargetResult* selfTarget =
+          GetSelfTarget(source, skill.Targets, true);
+      if (selfTarget && !selfTarget->CanHitstun) {
+        selfTarget->ForcedStunEnd =
+            now + (uint64_t)staggerConf->GetStaggerBlockedTime() * 1000ULL;
+      }
+    }
+  }
 
   std::set<uint32_t> keepEffects;
   if (skill.FunctionID &&
@@ -4474,6 +4644,19 @@ void SkillManager::ProcessSkillResultFinal(
 
         target.EntityState->SetStatusTimes(STATUS_KNOCKBACK, kbTime);
 
+        if (staggerConf) {
+          // Recovery window after getting up
+          uint64_t getUp = kbTime > hitStopTime ? kbTime : hitStopTime;
+          target.EntityState->SetStaggerImmuneUntil(
+              getUp + (uint64_t)staggerConf->GetStaggerDownImmunity() * 1000ULL);
+          target.EntityState->RegisterHitStun(
+              now, (uint64_t)staggerConf->GetStaggerStunWindow() * 1000ULL);
+
+          if (staggerConf->GetSmirkOnGetUp()) {
+            GrantSmirk(server, staggerConf, target.EntityState, getUp);
+          }
+        }
+
         p.WriteFloat(kbPoint.x);
         p.WriteFloat(kbPoint.y);
 
@@ -4553,22 +4736,30 @@ void SkillManager::ProcessSkillResultFinal(
             hitTimings[2] = effectiveHitStop;
           }
 
-          target.EntityState->SetStatusTimes(STATUS_HIT_STUN, hitTimings[2]);
+          ApplyStaggerHitStun(staggerConf, target.EntityState, hitTimings,
+                              now, completeTime, knockedBack);
         } else if (knockedBack) {
           // Normal hit stop time to finish knockback
           hitTimings[0] = now;
           hitTimings[2] = hitTimings[1] = effectiveHitStop;
 
-          target.EntityState->SetStatusTimes(STATUS_HIT_STUN, hitTimings[2]);
+          ApplyStaggerHitStun(staggerConf, target.EntityState, hitTimings,
+                              now, completeTime, knockedBack);
         } else if (target.AilmentDamageType != 0) {
           // Only apply ailment stun time
           hitTimings[2] = effectiveHitStop + target.AilmentDamageTime;
 
-          target.EntityState->SetStatusTimes(STATUS_HIT_STUN, hitTimings[2]);
+          ApplyStaggerHitStun(staggerConf, target.EntityState, hitTimings,
+                              now, completeTime, knockedBack);
         } else {
           // No damage, just result displays
           hitTimings[2] = completeTime;
         }
+      } else if (target.ForcedStunEnd) {
+        // Experimental stagger rework: blocked attack staggers the source
+        hitTimings[0] = now;
+        hitTimings[1] = hitTimings[2] = target.ForcedStunEnd;
+        target.EntityState->SetStatusTimes(STATUS_HIT_STUN, hitTimings[2]);
       } else if (target.EntityState == source && selfDelay) {
         // Source is quasi-hitstunned until the knockback ends
         source->SetStatusTimes(STATUS_IMMOBILE, selfDelay);
@@ -5848,6 +6039,13 @@ bool SkillManager::HandleCounter(
             });
 
             pSkill->ExecutionContext->SubContexts.push_back(counterCtx);
+
+            auto staggerConf = GetStaggerConfig(mServer.lock());
+            if (staggerConf && staggerConf->GetSmirkOnCounter()) {
+              GrantSmirk(mServer.lock(), staggerConf, target.EntityState,
+                         ChannelServer::GetServerTime());
+            }
+
             return true;
           }
         }
@@ -5904,6 +6102,13 @@ bool SkillManager::HandleDodge(const std::shared_ptr<ActiveEntityState>& source,
           if (ExecuteSkill(target.EntityState, activationID,
                            source->GetEntityID(), dodgeCtx)) {
             pSkill->ExecutionContext->SubContexts.push_back(dodgeCtx);
+
+            auto staggerConf = GetStaggerConfig(mServer.lock());
+            if (staggerConf && staggerConf->GetSmirkOnDodge()) {
+              GrantSmirk(mServer.lock(), staggerConf, target.EntityState,
+                         ChannelServer::GetServerTime());
+            }
+
             return true;
           }
         }
@@ -5946,6 +6151,16 @@ bool SkillManager::HandleSkillInterrupt(
                    tCancel->GetKnockbackCancel()) {
           // Interrupted from knockback
           applyInterrupt = true;
+        }
+
+        if (applyInterrupt) {
+          // Experimental stagger rework: charges are not interrupted while
+          // getting up or while Smirk is active
+          auto staggerConf = GetStaggerConfig(mServer.lock());
+          if (staggerConf &&
+              eState->IsStaggerImmune(ChannelServer::GetServerTime())) {
+            applyInterrupt = false;
+          }
         }
 
         if (applyInterrupt) {

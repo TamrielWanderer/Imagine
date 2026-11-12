@@ -38,6 +38,9 @@
 #include <StatusEffect.h>
 #include <TokuseiCondition.h>
 
+// Standard C++ Includes
+#include <atomic>
+
 // Standard C++11 includes
 #include <map>
 
@@ -519,6 +522,49 @@ class ActiveEntityState : public objects::ActiveEntityStateObject {
   float UpdateKnockback(uint64_t now, float decrease, float recoveryBoost);
 
   /**
+   * Experimental stagger rework: check if the entity currently cannot be
+   * staggered (knocked back or hit stunned). This is true during the
+   * recovery window after a knockback and while Smirk is active.
+   * @param now Current timestamp of the server
+   * @return true if the entity cannot be staggered
+   */
+  bool IsStaggerImmune(uint64_t now) const;
+
+  /**
+   * Experimental stagger rework: set the end of the recovery window
+   * after a knockback.
+   * @param until Server timestamp the window ends at
+   */
+  void SetStaggerImmuneUntil(uint64_t until);
+
+  /**
+   * Experimental stagger rework: record a hit stun for diminishing
+   * returns.
+   * @param now Current timestamp of the server
+   * @param window Length of the counting window in microseconds
+   * @return Number of hit stuns already taken in the current window
+   */
+  uint8_t RegisterHitStun(uint64_t now, uint64_t window);
+
+  /**
+   * Experimental stagger rework: grant Smirk until the timestamp.
+   * @param until Server timestamp Smirk ends at
+   */
+  void SetSmirkUntil(uint64_t until);
+
+  /**
+   * Experimental stagger rework: check if Smirk is active.
+   * @param now Current timestamp of the server
+   * @return true if Smirk is active
+   */
+  bool HasSmirk(uint64_t now) const;
+
+  /**
+   * Experimental stagger rework: remove Smirk (after it is used).
+   */
+  void ClearSmirk();
+
+  /**
    * Check if the entity state has everything needed to start
    * being used.
    * @param ignoreDisplayState Optional parameter to ignore the display state
@@ -844,6 +890,18 @@ class ActiveEntityState : public objects::ActiveEntityStateObject {
       libhack::DefinitionManager* definitionManager);
 
  protected:
+  /// Experimental stagger rework: end of the post knockback window
+  std::atomic<uint64_t> mStaggerImmuneUntil{0};
+
+  /// Experimental stagger rework: start of the hit stun counting window
+  std::atomic<uint64_t> mHitStunWindowStart{0};
+
+  /// Experimental stagger rework: hit stuns taken in the current window
+  std::atomic<uint8_t> mHitStunCount{0};
+
+  /// Experimental stagger rework: end of the Smirk state
+  std::atomic<uint64_t> mSmirkUntil{0};
+
   /**
    * Remove the set of supplied status effects from all registered
    * collections. This function should not be called directly in place of

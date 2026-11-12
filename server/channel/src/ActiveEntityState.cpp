@@ -633,6 +633,38 @@ float ActiveEntityState::UpdateKnockback(uint64_t now, float decrease,
   return kb;
 }
 
+bool ActiveEntityState::IsStaggerImmune(uint64_t now) const {
+  return now < mStaggerImmuneUntil.load() || now < mSmirkUntil.load();
+}
+
+void ActiveEntityState::SetStaggerImmuneUntil(uint64_t until) {
+  mStaggerImmuneUntil = until;
+}
+
+uint8_t ActiveEntityState::RegisterHitStun(uint64_t now, uint64_t window) {
+  uint64_t start = mHitStunWindowStart.load();
+  if (!start || now < start || now - start > window) {
+    mHitStunWindowStart = now;
+    mHitStunCount = 1;
+    return 0;
+  }
+
+  uint8_t count = mHitStunCount.load();
+  if (count < 255) {
+    mHitStunCount = (uint8_t)(count + 1);
+  }
+
+  return count;
+}
+
+void ActiveEntityState::SetSmirkUntil(uint64_t until) { mSmirkUntil = until; }
+
+bool ActiveEntityState::HasSmirk(uint64_t now) const {
+  return now < mSmirkUntil.load();
+}
+
+void ActiveEntityState::ClearSmirk() { mSmirkUntil = 0; }
+
 std::shared_ptr<Zone> ActiveEntityState::GetZone() const {
   return mCurrentZone;
 }

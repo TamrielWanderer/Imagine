@@ -35,6 +35,39 @@ python partner_ai_patch.py "<client folder>" --debug    # also write a debug log
 
 The patch checks the original bytes before it writes anything, and it can upgrade a client patched with an older version. The reverse engineering notes are in `docs/client-partner-ai-notes.md`. The scripts `build_learning_cave.py`, `build_aggressive_cave.py` and `build_skill_filter.py` rebuild the added code.
 
+**Stagger rework** (channel server, `StaggerRework` in `channelconfig.xml`)
+
+In the original game, hits stop the target (knockback and hit stun) and nothing limits how long a target can be kept stunned. Enemy groups and players could chain hits so the target never acted. The rework keeps hits feeling strong but makes stagger something you earn, in the spirit of the Press Turn system:
+
+- **Affinity decides the stagger.** A hit on a weakness, a critical or a limit break drains the knockback gauge 3× faster. A normal hit drains it as before. A resisted hit does not drain it and does not cause hit stun.
+- **Blocked attacks stagger the attacker.** If an attack is nulled, absorbed (drained) or reflected, the attacker is stunned for 1 s, the "lost turn" of Press Turn.
+- **Recovery after a knockback.** After getting up from a knockback, the target cannot be knocked back, hit stunned or have a charge interrupted for 2.5 s.
+- **Diminishing hit stun.** Within 5 s, the second hit stun on a target lasts half as long and later ones do not apply. Knockbacks count toward this.
+- **Smirk.** A successful dodge or counter grants Smirk for 8 s. While it lasts the entity cannot be staggered, and its next damaging skill deals 150% damage, which uses up Smirk. A chat message tells the player when they or their demon smirk.
+- **Guard is unchanged.** It still reduces damage and prevents stagger.
+
+The rules apply the same way to players, demons and enemies. Settings (all in `channelconfig.xml`):
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `StaggerRework` | `false` | Turns the rework on |
+| `StaggerWeakPercent` | `300` | Gauge drain on a weakness, critical or limit break, in % |
+| `StaggerNormalPercent` | `100` | Gauge drain on a normal hit, in % |
+| `StaggerResistPercent` | `0` | Gauge drain on a resisted hit, in % |
+| `StaggerResistHitStun` | `false` | Whether resisted hits still cause hit stun |
+| `StaggerBlockedTime` | `1000` | Attacker stun when its attack is nulled, absorbed or reflected, in ms (0 = off) |
+| `StaggerDownImmunity` | `2500` | Recovery window after a knockback, in ms |
+| `StaggerStunWindow` | `5000` | Window for diminishing hit stun, in ms |
+| `StaggerStunDecay` | `50` | Hit stun length for each repeat in the window, in % of the previous one |
+| `StaggerStunMax` | `2` | Hit stuns allowed in the window (0 = no limit) |
+| `SmirkOnDodge` / `SmirkOnCounter` | `true` | What grants Smirk |
+| `SmirkOnGetUp` | `false` | Also grant Smirk when getting up from a knockback |
+| `SmirkDuration` | `8000` | How long Smirk lasts, in ms |
+| `SmirkDamagePercent` | `150` | Damage of the attack that uses Smirk, in % |
+| `SmirkMessage` | `true` | Chat message when Smirk starts |
+
+`scripts/start_server.ps1 -StaggerRework on|off` switches it (on by default in this branch, remembered in `stagger_rework.txt`).
+
 **Server partner assist (off by default)**
 
 An earlier server-side try at the same goal. The channel server can make the partner demon use skills on its own. It is turned off by default and is not needed with the client patch. Options in `channelconfig.xml`: `PartnerCombatAssist`, `PartnerAssistInterval`, `PartnerAssistHealPercent`, `PartnerAssistBuffInterval`, `PartnerAssistChase` and `PartnerAssistOwnSkills`. `scripts/start_server.ps1 -PartnerAssist on|off` switches it.

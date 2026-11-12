@@ -16,11 +16,14 @@
 # can connect. Remembered in <server dir>/lan_ip.txt; -LanIP off turns it off.
 # Partner demon combat assist (experimental): -PartnerAssist on|off, remembered
 # in <server dir>/partner_assist.txt. Default on.
+# Stagger rework (experimental): -StaggerRework on|off, remembered in
+# <server dir>/stagger_rework.txt. Default on.
 param(
     [string]$ClientDir = '',
     [string]$ClientVersion = '2.032',  # ReIMAGINE client; the original client is 1.666
     [string]$LanIP = '',
-    [string]$PartnerAssist = ''
+    [string]$PartnerAssist = '',
+    [string]$StaggerRework = ''
 )
 $ErrorActionPreference = 'Continue'
 . "$PSScriptRoot\common.ps1"
@@ -61,6 +64,12 @@ $assistFile = Join-Path $srv 'partner_assist.txt'
 if (-not $PartnerAssist -and (Test-Path $assistFile)) { $PartnerAssist = (Get-Content $assistFile -First 1).Trim() }
 if ($PartnerAssist -ne 'off') { $PartnerAssist = 'on' }
 Set-Content -Path $assistFile -Value $PartnerAssist -Encoding utf8
+
+# Stagger rework switch (channel server).
+$staggerFile = Join-Path $srv 'stagger_rework.txt'
+if (-not $StaggerRework -and (Test-Path $staggerFile)) { $StaggerRework = (Get-Content $staggerFile -First 1).Trim() }
+if ($StaggerRework -ne 'off') { $StaggerRework = 'on' }
+Set-Content -Path $staggerFile -Value $StaggerRework -Encoding utf8
 if (-not (Test-Path (Join-Path $bin 'comp_lobby.exe'))) {
     Say "No Release build found in $build. Build first (vs2026_build.bat) or set IMAGINE_BUILD_DIR."
     exit 1
@@ -91,6 +100,9 @@ foreach ($f in 'lobby.xml', 'world.xml', 'channel.xml', 'newcharacter.xml') {
     if ($f -eq 'channel.xml' -and $PartnerAssist -eq 'on') {
         $text = $text -replace '(<member name="DatabaseType">SQLITE3</member>)', "`$1`r`n        <member name=`"PartnerCombatAssist`">true</member>"
     }
+    if ($f -eq 'channel.xml' -and $StaggerRework -eq 'on') {
+        $text = $text -replace '(<member name="DatabaseType">SQLITE3</member>)', "`$1`r`n        <member name=`"StaggerRework`">true</member>"
+    }
     if ($f -eq 'lobby.xml') {
         $text = $text -replace '(<member name="DatabaseType">SQLITE3</member>)', "`$1`r`n        <member name=`"ClientVersion`">$ClientVersion</member>"
     }
@@ -120,6 +132,7 @@ if ($LanIP) {
 } else {
     Say 'LAN:   off (this PC only; use -LanIP auto for LAN play)'
 }
+Say "stagger rework: $StaggerRework (-StaggerRework on|off)"
 
 $servers = @(
     @{ name = 'lobby';   exe = 'comp_lobby.exe';   timeout = 120 },

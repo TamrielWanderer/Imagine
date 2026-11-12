@@ -24,5 +24,21 @@
         <member type="u16" name="PartnerAssistBuffInterval" default="60"/>
         <member type="bool" name="PartnerAssistChase" default="false"/>
         <member type="bool" name="PartnerAssistOwnSkills" default="true"/>
+        <member type="bool" name="StaggerRework" default="false"/>
+        <member type="u16" name="StaggerWeakPercent" default="300"/>
+        <member type="u16" name="StaggerNormalPercent" default="100"/>
+        <member type="u16" name="StaggerResistPercent" default="0"/>
+        <member type="bool" name="StaggerResistHitStun" default="false"/>
+        <member type="u16" name="StaggerBlockedTime" default="1000"/>
+        <member type="u16" name="StaggerDownImmunity" default="2500"/>
+        <member type="u16" name="StaggerStunWindow" default="5000"/>
+        <member type="u8" name="StaggerStunDecay" default="50"/>
+        <member type="u8" name="StaggerStunMax" default="2"/>
+        <member type="bool" name="SmirkOnDodge" default="true"/>
+        <member type="bool" name="SmirkOnCounter" default="true"/>
+        <member type="bool" name="SmirkOnGetUp" default="false"/>
+        <member type="u16" name="SmirkDuration" default="8000"/>
+        <member type="u16" name="SmirkDamagePercent" default="150"/>
+        <member type="bool" name="SmirkMessage" default="true"/>
     </object>
 </objgen>
