@@ -80,12 +80,35 @@ usable skill always wins and later ones (often the stronger attacks) are
 never reached. Re-targeting waits up to 15 s, and after each action the AI
 waits 1.5 to 5 s.
 
+## Choosing the skill inside a category
+
+Builders 0x636b50 (near, weights at table+4) and 0x636ce0 (far, table+0x38)
+pick one of 11 skill groups by weighted random. Weights come from the AI
+data table (`func(0x103)`), indexed [category*26 + group]; a group only
+counts if its AI option is on: option index = byte table 0x87fe590[group]
+= 1,1,1,2,3,3,3,4,4,4,5, read as `this+0x12f+index`. 0x636490 then lists the
+demon's skills of that group from the list at +0x10c (entries of 0x1c bytes:
++4 = skill action type, +7 = support sub-type, +8.. status IDs):
+
+| Group | Action type |
+| --- | --- |
+| 0, 1, 2 | ATTACK, SPIN, RUSH |
+| 3 | SHOT or RAPID |
+| 4, 5, 6 | GUARD, COUNTER, DODGE |
+| 7, 8, 9, 10 | SUPPORT sub-types 7, 8 (cure a status), 9, 10 |
+
+Nothing in this path looks at the target's affinities, which is why the
+demon can attack with an element the enemy drains.
+
 ## Applied patches (contrib/client-patches/partner_ai_patch.py)
 
 - Six pause/retarget constants shortened.
 - Category order changed to 5,6,7,1,2,12,10,11,13 (attack before self
   skills and owner buffs): the loop tail jumps to a cave at 0x638b20 that
   reads the next category from a 14-byte table at 0x638b40.
+- Groups 4-6 (guard/counter/dodge) now use option index -0x30, i.e. the
+  flag at +0xff that message 0x8e sets while the target is starting an
+  attack, so the demon only defends when an attack is coming.
 - comp_client.dll's expected SHA-1 of .text updated to match.
 
 ## Next steps

@@ -86,6 +86,13 @@ PATCHES = [
      'skill picker: jump to the category order table'),
     (0x638b20, b'\xcc' * len(_CAVE), _CAVE,
      'skill picker: category order ' + ','.join(map(str, CATEGORY_ORDER))),
+    # Skill groups 4, 5 and 6 (guard, counter, dodge) normally follow the
+    # player's "defense" AI option (index 3 into the options at +0x12f).
+    # Index -0x30 (0xd0) points them at +0xff instead, the flag the AI sets
+    # while its target is starting an attack (message 0x8e), so the demon
+    # only guards, counters or dodges when an attack is actually coming.
+    (0x87fe594, b'\x03\x03\x03', b'\xd0\xd0\xd0',
+     'guard/counter/dodge only while the target is attacking'),
 ]
 
 
