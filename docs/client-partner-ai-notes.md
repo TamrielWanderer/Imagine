@@ -136,9 +136,11 @@ demon can attack with an element the enemy drains.
   +0x68 area type, +0x69 valid type, +0x6c aoe range, +0x78 modifier 1,
   +0x94 head of the add-status list.
 - Skill filter v2 at 0x638f80 (build_skill_filter.py) replaces the first
-  filter: also drops untargeted attacks around the demon (target type 0,
-  valid ENEMY, area 3/9/4/5) while the target is farther than
-  aoeRange*10+150.
+  filter: also drops attacks centered on the demon (valid ENEMY, area
+  3/9/4/5) while the target is farther than max(target range, aoe
+  range)*10+150. Example: Absolute Zero (skills 67/81) is SPIN, target
+  ENEMY range 50/60, SOURCE_RADIUS area 60; caster-type demons do not walk
+  up for it and waited in place.
 - comp_client.dll's expected SHA-1 of .text updated to match.
 
 ## Next steps
