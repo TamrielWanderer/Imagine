@@ -119,8 +119,14 @@ PATCHES = [
      'learning: hook action reports'),
     (0x6917c6, bytes.fromhex('6a20e827f2a300'), bytes.fromhex('e90574faff9090'),
      'learning: hook delayed action reports'),
-    (0x637093, bytes.fromhex('e81a68dfff'), bytes.fromhex('e8581b0000'),
-     'learning: skip skills known to fail on the target'),
+    # Skill filter v2 (build_skill_filter.py): besides learned failures it
+    # leaves out untargeted attacks around the demon itself (like Absolute
+    # Zero) while the target is outside their area, so the demon picks a
+    # skill that reaches instead of waiting in place.
+    (0x638f80, b'\xcc' * 319, bytes.fromhex('8b4424048b519885d20f8e240100005657535589ce89d78b28b8002f9108393875093968040f840d01000083c0083d0030910872e96803010000e89170490083c40485c00f84e300000089c18b1055ff521885c00f84d3000000807852000f85c9000000807869000f85bf0000008a586880fb03741480fb09740f80fb04740a80fb057405e9a3000000db406cc705cc2e910800002041d80dcc2e9108c705cc2e910800001643d805cc2e9108d8c8d91dcc2e91086800010000e81170490083c40485c0746789c3ff769489d9e86f2bdeff85c074578b08890dc02e91088b4804890dc42e91088b4808890dc82e91085789d9e8492bdeff85c07431d900d825c02e9108d8c8d94004d825c42e9108d8c8dec1d94008d825c82e9108d8c8dec1d81dcc2e9108dfe0f6c441740b89f15d5b5f5ee9fa47dfff5d5b5f5ec20400'),
+     'skill filter: learned failures + area-around-self range check'),
+    (0x637093, bytes.fromhex('e81a68dfff'), bytes.fromhex('e8e81e0000'),
+     'skill filter: used by the skill picker', bytes.fromhex('e8581b0000')),
     # Aggressive mode on the old "defense" AI option (index 3, byte +0x132),
     # which the guard patch above no longer uses: option on = normal, off =
     # aggressive. When aggressive and without a target, each AI update picks

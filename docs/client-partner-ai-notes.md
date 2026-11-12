@@ -129,6 +129,16 @@ demon can attack with an element the enemy drains.
   (positions from 0x41bbc1). Then sets +0xa4, +0xfa = 3, +0x103 = 1 and
   +0xe8 = now, like the "owner targets an enemy" handler (0x634441).
   Scratch at 0x8912e80. Verified in an emulator with stubbed game calls.
+- Skill data: data manager task 0x103, vtable +0x18 = get skill by ID
+  (thiscall). The record mirrors the libhack MiSkillData schema with C
+  alignment and 12-byte std::list members: +0x8 affinity, +0x19 action
+  type, +0x40 charge time, +0x50 target range (u16), +0x52 target type,
+  +0x68 area type, +0x69 valid type, +0x6c aoe range, +0x78 modifier 1,
+  +0x94 head of the add-status list.
+- Skill filter v2 at 0x638f80 (build_skill_filter.py) replaces the first
+  filter: also drops untargeted attacks around the demon (target type 0,
+  valid ENEMY, area 3/9/4/5) while the target is farther than
+  aoeRange*10+150.
 - comp_client.dll's expected SHA-1 of .text updated to match.
 
 ## Next steps
