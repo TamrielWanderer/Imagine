@@ -46,6 +46,22 @@ if ($Add.Count) {
     }
 }
 
+# ImagineClient.exe and comp_client.dll must always be published together:
+# comp_client.dll holds a checksum of the exe's code (the client AI patch
+# updates both), and a launcher that gets only one of them ends up with a
+# client that closes on start.
+$clientFile = Join-Path $srv 'client_dir.txt'
+if ((Test-Path (Join-Path $patch 'ImagineClient.exe')) -and (Test-Path $clientFile)) {
+    $client = (Get-Content $clientFile -First 1).Trim()
+    foreach ($pair in 'ImagineClient.exe', 'comp_client.dll') {
+        $src = Join-Path $client $pair
+        if (Test-Path $src) {
+            Copy-Item -Force $src (Join-Path $patch $pair)
+            Write-Host "included $pair (published as a pair)"
+        }
+    }
+}
+
 $list = @(Get-ChildItem -Recurse -File $patch)
 if (-not $list.Count) { Write-Host "Nothing to publish: $patch is empty."; exit 1 }
 
