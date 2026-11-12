@@ -10,9 +10,16 @@ build is refused instead of being corrupted. Without --out the file is
 patched in place and the original is kept once as ImagineClient.exe.orig.
 --revert puts the original values back, --check only reports the state.
 
+ReIMAGINE's comp_client.dll refuses to start the game if the client's .text
+section is not the one it knows (it compares a SHA-1 of it). The script
+therefore also updates that stored hash in comp_client.dll next to the exe
+(original kept as comp_client.dll.orig), so the dll's own patches and checks
+keep working.
+
 See docs/client-partner-ai-notes.md for how these were found.
 """
 import argparse
+import hashlib
 import os
 import shutil
 import struct
@@ -53,6 +60,40 @@ def file_offset(data, va):
     raise ValueError(f'address {va:#x} not in any section')
 
 
+def text_sha1(data):
+    """SHA-1 of the .text section as comp_client.dll computes it
+    (0x401000, 0x12ca000 bytes; the section is not relocated)."""
+    off = file_offset(data, 0x401000)
+    return hashlib.sha1(bytes(data[off:off + 0x12ca000])).digest()
+
+
+def update_dll_hash(dll_path, old_hash, new_hash, out_path=None):
+    """Replace the .text hash comp_client.dll expects."""
+    if old_hash == new_hash:
+        return
+    dll = bytearray(open(dll_path, 'rb').read())
+    if dll.count(new_hash) == 1 and dll.count(old_hash) == 0:
+        print(f'{dll_path}: already expects this client')
+        if out_path:
+            open(out_path, 'wb').write(dll)
+        return
+    if dll.count(old_hash) != 1:
+        sys.exit(f'{dll_path}: could not find the expected client hash; '
+                 'the exe was written but the game will refuse to start')
+    pos = dll.find(old_hash)
+    dll[pos:pos + 20] = new_hash
+    if out_path:
+        open(out_path, 'wb').write(dll)
+        print(f'written {out_path}')
+    else:
+        backup = dll_path + '.orig'
+        if not os.path.exists(backup):
+            shutil.copyfile(dll_path, backup)
+            print(f'original kept as {backup}')
+        open(dll_path, 'wb').write(dll)
+        print(f'{dll_path}: updated the client hash')
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -83,12 +124,19 @@ def main():
     if a.check:
         return 0
 
+    old_hash = text_sha1(data)
     for off, cur, orig, new, desc in state:
         struct.pack_into('<I', data, off, orig if a.revert else new)
+    new_hash = text_sha1(data)
+    dll = os.path.join(os.path.dirname(os.path.abspath(a.exe)), 'comp_client.dll')
 
     if a.out:
         open(a.out, 'wb').write(data)
         print(f'written {a.out}')
+        if os.path.exists(dll):
+            update_dll_hash(dll, old_hash, new_hash,
+                            os.path.join(os.path.dirname(os.path.abspath(a.out)),
+                                         'comp_client.dll'))
     else:
         backup = a.exe + '.orig'
         if not os.path.exists(backup) and patched == 0:
@@ -96,6 +144,8 @@ def main():
             print(f'original kept as {backup}')
         open(a.exe, 'wb').write(data)
         print('reverted' if a.revert else 'patched')
+        if os.path.exists(dll):
+            update_dll_hash(dll, old_hash, new_hash)
     return 0
 
 
