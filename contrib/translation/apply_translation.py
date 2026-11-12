@@ -2,7 +2,7 @@
 """Apply an English translation table to the game client's BinaryData files.
 
     apply_translation.py --client <client folder> --tools <folder with comp_* tools>
-                         [--table menus_system.json] [--out <folder>] [--check]
+                         [--table <table.json> ...] [--out <folder>] [--check]
 
 For every file listed in the table the script decrypts it (if encrypted),
 converts it to XML with comp_bdpatch, replaces each Japanese text that has a
@@ -17,6 +17,7 @@ Running it again on an already translated client is harmless: the English
 text no longer matches the Japanese keys, so nothing changes.
 """
 import argparse
+import glob
 import json
 import os
 import re
@@ -46,7 +47,8 @@ def main():
     ap.add_argument('--client', required=True, help='game client folder (has BinaryData)')
     ap.add_argument('--tools', required=True,
                     help='folder with comp_decrypt, comp_encrypt and comp_bdpatch')
-    ap.add_argument('--table', default=os.path.join(HERE, 'menus_system.json'))
+    ap.add_argument('--table', action='append',
+                    help='translation table (repeatable; default: every *.json next to this script)')
     ap.add_argument('--out', help='write translated files here instead of into the client')
     ap.add_argument('--check', action='store_true', help='only count replacements')
     a = ap.parse_args()
@@ -55,10 +57,19 @@ def main():
     encrypt = tool(a.tools, 'comp_encrypt')
     bdpatch = tool(a.tools, 'comp_bdpatch')
 
-    with open(a.table, encoding='utf-8') as f:
-        table = json.load(f)
-    strings = table['strings']
-    limit_encoding = table.get('encoding', 'cp932')
+    tables = a.table or sorted(glob.glob(os.path.join(HERE, '*.json')))
+    strings = {}
+    files = {}
+    limit_encoding = 'cp932'
+    for path in tables:
+        with open(path, encoding='utf-8') as f:
+            t = json.load(f)
+        print(f'table {os.path.basename(path)}: {len(t["strings"])} strings')
+        strings.update(t['strings'])
+        limit_encoding = t.get('encoding', limit_encoding)
+        for entry in t['files']:
+            files.setdefault(entry['path'], entry)
+    table = {'files': list(files.values())}
 
     for ja, en in strings.items():
         try:
