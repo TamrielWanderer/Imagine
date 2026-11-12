@@ -108,6 +108,16 @@ PATCHES = [
      'learning: hook delayed action reports'),
     (0x637093, bytes.fromhex('e81a68dfff'), bytes.fromhex('e8581b0000'),
      'learning: skip skills known to fail on the target'),
+    # Aggressive mode on the old "defense" AI option (index 3, byte +0x132),
+    # which the guard patch above no longer uses: option on = normal, off =
+    # aggressive. When aggressive and without a target, each AI update picks
+    # the nearest living hostile enemy within 1500 units and engages it the
+    # same way the "owner targets an enemy" message does. Code built by
+    # build_aggressive_cave.py.
+    (0x638c30, b'\xcc' * 401, bytes.fromhex('80be32010000000f85cd00000083bea4000000000f8fc00000006800010000e8fc73490083c40485c00f84ab00000089c3ffb6a000000089d9e8532fdeff85c00f84940000008b08890d802e91088b4804890d842e91088b4808890d882e9108c7058c2e91084054094ac705942e9108000000008dbb9800000031ed3b6f04731e8b47088b04a885c0741150ff7004e84700000083c404588b00ebeb45ebdda1942e910885c074328986a4000000c686fa00000003c686030100000168fd000000e85a73490083c40485c0740d89c1e817b7ddff8986e8000000c3578b7c24083bbea00000000f84900000005789d9e88056ddff85c00f84800000008b400c85c0747980785f0375736a035789f1e8aa35ddff3c0175655789d9e88f24dfff85c074598078080574535789d9e8602edeff85c07447d900d825802e9108d8c8d94004d825842e9108d8c8dec1d94008d825882e9108d8c8dec1d915902e9108d81d8c2e9108dfe0f6c4017410a1902e9108a38c2e9108893d942e91085fc3cccc60e87afeffff6168fd000000e95e0f0000'),
+     'aggressive mode: code (scan for the nearest enemy)'),
+    (0x639d1a, bytes.fromhex('68fd000000'), bytes.fromhex('e991f0ffff'),
+     'aggressive mode: hook the AI update'),
 ]
 
 

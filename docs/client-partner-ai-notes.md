@@ -119,6 +119,16 @@ demon can attack with an element the enemy drains.
   list push in the picker pre-pass (call at 0x637093, ecx = task+0x10c)
   goes through a filter that drops a skill recorded for the current target
   (task+0xa4). Code at 0x638b60..0x638c20, from build_learning_cave.py.
+- Aggressive mode: AI option index 3 (byte +0x132, the old "defense"
+  option) off = aggressive. Hook at 0x639d1a in Update (after the
+  active/enabled checks, esi = task) calls code at 0x638c30: if option off
+  and no target, it walks the entity manager's id table (task 0x100 +
+  0x98; hash table: +4 bucket count, +8 buckets, node {next, id, value}),
+  keeps entities whose data +0x5f == 3 (enemy), hostile (0x40c2ed == 1),
+  not in state 5 (0x42b1de +8), and picks the nearest within 1500 units
+  (positions from 0x41bbc1). Then sets +0xa4, +0xfa = 3, +0x103 = 1 and
+  +0xe8 = now, like the "owner targets an enemy" handler (0x634441).
+  Scratch at 0x8912e80. Verified in an emulator with stubbed game calls.
 - comp_client.dll's expected SHA-1 of .text updated to match.
 
 ## Next steps
