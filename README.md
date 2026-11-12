@@ -7,6 +7,38 @@
 
 The aim of the project is to revive an MMO that has been shutdown (SMT: IMAGINE). It's a complete re-implementation of the server from scratch and fully open source.
 
+## Experimental branch ##
+
+This is the `experimental` branch. It holds changes that differ from the original release of the game. Use `main` if you want the original behavior.
+
+### List of changes ###
+
+**Client partner demon AI** (`contrib/client-patches/partner_ai_patch.py`)
+
+The partner demon AI runs in the game client, so these changes are a patch to `ImagineClient.exe`. The patcher changes:
+
+- **Shorter pauses.** The demon waits less time between actions (1.5 s → 0.5 s between actions, and shorter waits after skills and movement).
+- **Better skill choice.** Healing and recovery come first when an ally is hurt. Then attack skills, and buffs and debuffs last.
+- **Guard and counter only when attacked.** The demon no longer uses guard or counter skills when nothing is attacking it.
+- **Learning enemy resistances.** When a skill is drained, nulled or reflected by an enemy type, the demon remembers it and stops using that element on that enemy type. The memory resets when the client closes.
+- **Aggressive mode.** The old "Defense" option in the demon's behavior settings now switches modes. Enabled means normal mode. Disabled means aggressive mode: the demon attacks any hostile enemy in medium range, even when no one is fighting.
+- **Area skills only in range.** Skills that hit an area around the demon (for example Absolute Zero) are only chosen when the target is inside the area. Otherwise the demon picks another suitable skill.
+
+The game checks the client's code, so the patcher also updates the matching hash in `comp_client.dll`. It keeps `.orig` backups of both files.
+
+```
+python partner_ai_patch.py "<client folder>"            # apply the patch
+python partner_ai_patch.py "<client folder>" --check    # show what is applied
+python partner_ai_patch.py "<client folder>" --revert   # restore the original files
+python partner_ai_patch.py "<client folder>" --debug    # also write a debug log
+```
+
+The patch checks the original bytes before it writes anything, and it can upgrade a client patched with an older version. The reverse engineering notes are in `docs/client-partner-ai-notes.md`. The scripts `build_learning_cave.py`, `build_aggressive_cave.py` and `build_skill_filter.py` rebuild the added code.
+
+**Server partner assist (off by default)**
+
+An earlier server-side try at the same goal. The channel server can make the partner demon use skills on its own. It is turned off by default and is not needed with the client patch. Options in `channelconfig.xml`: `PartnerCombatAssist`, `PartnerAssistInterval`, `PartnerAssistHealPercent`, `PartnerAssistBuffInterval`, `PartnerAssistChase` and `PartnerAssistOwnSkills`. `scripts/start_server.ps1 -PartnerAssist on|off` switches it.
+
 ### Building on Linux ###
 
 You only need to build the project if you are on a Linux system that doesn't have a package (there is a [PPA](https://launchpad.net/~compomega/+archive/ubuntu/comphack) for Ubuntu-based systems) or you want to contribute. That being said, if you wish to contribute, Linux is the preferred build and run environment for the server. Of course you can build and develop with Visual Studio 2015 on Windows if that's your thing.
