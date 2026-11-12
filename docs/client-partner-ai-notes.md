@@ -109,6 +109,16 @@ demon can attack with an element the enemy drains.
 - Groups 4-6 (guard/counter/dodge) now use option index -0x30, i.e. the
   flag at +0xff that message 0x8e sets while the target is starting an
   attack, so the demon only defends when an attack is coming.
+- Learning affinities: action reports are handled in 0x68d300 (entries at
+  report+0x68, skill at +8) and 0x690970 (entries at +0x88, skill at +0xc);
+  entries are 0x68 bytes: +4 target, +0xc damage type 1, +0x14 type 2,
+  +0x16 u16 result flags. Hooks at 0x68e342 / 0x6917c6 (reached for hits by
+  the owner or partner) record (target, skill) when the result is healing
+  (1) or drain (5) on the target, or flags 0x3e00 (reflect/null/absorb),
+  into a 32-entry ring at 0x8912f00 (unused tail of .rwdata). The skill
+  list push in the picker pre-pass (call at 0x637093, ecx = task+0x10c)
+  goes through a filter that drops a skill recorded for the current target
+  (task+0xa4). Code at 0x638b60..0x638c20, from build_learning_cave.py.
 - comp_client.dll's expected SHA-1 of .text updated to match.
 
 ## Next steps

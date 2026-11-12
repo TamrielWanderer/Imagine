@@ -93,6 +93,21 @@ PATCHES = [
     # only guards, counters or dodges when an attack is actually coming.
     (0x87fe594, b'\x03\x03\x03', b'\xd0\xd0\xd0',
      'guard/counter/dodge only while the target is attacking'),
+    # Learning affinities: when a hit by the owner or the partner comes back
+    # drained, absorbed, nulled or reflected (damage type 1 or 5 on the
+    # target, or result flags 0x3e00), the pair (target entity, skill) is
+    # remembered in a 32-entry ring at 0x8912f00 (unused tail of .rwdata).
+    # The skill picker then leaves that skill out while that enemy is the
+    # target. Code built by build_learning_cave.py.
+    (0x638b60, b'\xcc' * 192,
+     bytes.fromhex('0fb6500c83fa01740c83fa057407f640173e7501c38b5004b8002f910839107505394804742483c0083d0030910872eda1f02e91084083e01fa3f02e91088d04c5002f91088910894804c3cccccccccc608b466801f88b4e08e8a2ffffff616a20e82e7ea900e97e570500cccccccccc608b868800000001f88b4e0ce87fffffff616a20e80b7ea900e9df8b0500cccc8b4424048b519885d27e1c568b30b8002f910839107505397004741083c0083d0030910872ed5ee9964cdfff5ec20400'),
+     'learning: code (record bad results, filter skills)'),
+    (0x68e342, bytes.fromhex('6a20e8ab26a400'), bytes.fromhex('e969a8faff9090'),
+     'learning: hook action reports'),
+    (0x6917c6, bytes.fromhex('6a20e827f2a300'), bytes.fromhex('e90574faff9090'),
+     'learning: hook delayed action reports'),
+    (0x637093, bytes.fromhex('e81a68dfff'), bytes.fromhex('e8581b0000'),
+     'learning: skip skills known to fail on the target'),
 ]
 
 
