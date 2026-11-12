@@ -1,0 +1,311 @@
+SHIN MEGAMI TENSEI: IMAGINE - GM COMMANDS
+========================================================================
+
+HOW TO USE
+- Type the command in the in-game chat box. Every command starts with @.
+- Your account needs a GM user level. The local admin account made by
+  start_server.ps1 has UserLevel 1000, which allows every command.
+- @help lists all commands. @help item shows the help for one command.
+- [BRACKETS] mean the part is optional. A|B means one or the other.
+- Where a command takes DEMON, type the word demon to target your
+  summoned partner demon instead of your character.
+- NAME is a character name and is case sensitive.
+- IDs are the reliable way to pick items, demons and skills. Names must
+  match the game data exactly, which is mostly Japanese.
+
+QUICK TESTING RECIPES
+------------------------------------------------------------------------
+  @levelup 99              Your character to level 99.
+  @levelup 99 demon        Your summoned demon to level 99.
+  @item macca 1000000      1,000,000 macca.
+  @item mag 10000          10,000 magnetite.
+  @contract ID             Add a demon to your COMP by demon ID.
+  @skill ID demon          Teach your demon a skill by skill ID.
+  @skillpoint 50           Skill points to spend on your character.
+  @familiarity 10000       Max familiarity for your demon.
+  @enemy ID                Spawn an enemy next to you (combat and stagger tests).
+  @spawn                   Fill every spawn group in the zone.
+  @speed 2                 Double your run speed (@speed 1 to reset).
+  @pos                     Show your X, Y position.
+  @zone ID                 Go to another zone.
+
+CHARACTER AND DEMON PROGRESS
+------------------------------------------------------------------------
+@levelup LEVEL [DEMON]
+    Levels up the player to the specified LEVEL or the player's current
+    partner if DEMON is set to 'demon'.
+
+@xp PTS [DEMON]
+    Grants the player PTS XP or the demon if DEMON is set to 'demon'.
+
+@skillpoint PTS
+    Adds the specified number of skill points PTS to the available skill
+    points for allocation.
+
+@skill ID DEMON
+    Grants the skill with the specified ID to the player or the player's
+    partner if DEMON is set to 'demon'.
+
+@forgetskill ID
+    Removes the skill with the specified ID from the player.
+
+@expertise ID RANK
+    Sets the expertise by ID to a specified RANK.
+
+@expertisemax STACKS [NAME]
+    Adds STACKS * 1000 points to the expertise cap of the character
+    specified by NAME. If no name is supplied, the current character is
+    targeted. The maximum expertise cap is 154,000.
+
+@lnc VALUE
+    Sets the player's LNC to the given VALUE. VALUE should be in the
+    range [-10000, 10000].
+
+@familiarity VALUE
+    Updates the current partner's familiarity to the given VALUE which
+    can be in the range [0-10000].
+
+@sp PTS
+    Updates the player's partner to have PTS SP.
+
+@reunion TYPE [RANK]
+    Perform reunion on your currently summoned demon setting the normal
+    TYPE [1-12] and RANK or explicit growth TYPE by ID if no RANK
+    specified.
+
+@dforce SLOT EFFECTID [NAME]
+    Sets the Demon Force Stack of the currently summoned demon of the
+    character specified by NAME to the given ID at the given SLOT. If no
+    name is supplied, the current character is targeted.
+
+@dxp RACEID POINTS
+    Gain digitalize XP for the specified demon race ID.
+
+@fgauge VALUE
+    Updates the current character's fusion gauge to the given VALUE
+    which can be in the range of [0-10000] times the number of fusion
+    gauge stocks available.
+
+@title ID
+    Grants the player a new character title by ID.
+
+@plugin ID [REMOVE]
+    Grants the player the plugin with the given ID. If REMOVE is set to
+    'remove' the plugin is removed.
+
+@valuable ID [REMOVE]
+    Grants the player the valuable with the given ID. If REMOVE is set
+    to 'remove' the valuable is removed.
+
+@map ID
+    Adds map for the player with the given ID.
+
+@homepoint
+    Sets your current position as your homepoint.
+
+DEMONS
+------------------------------------------------------------------------
+@contract ID|NAME
+    Adds demon given by its ID or NAME to your COMP.
+
+ITEMS, MONEY AND CURRENCIES
+------------------------------------------------------------------------
+@item ID|NAME [QTY]
+    Adds the item given by the ID or NAME in the specified quantity to
+    the player's inventory. The NAME may be 'macca' or 'mag' instead.
+
+@post ID [NAME]
+    Adds the post item given by the ID to the character specified by
+    NAME's post. If NAME is not specified the player's post is used.
+
+@scrap SLOT [NAME]
+    Removes the item in slot SLOT from the character's inventory whose
+    NAME is specified. The SLOT is a value in the range [1, 50] and if
+    the NAME is not specified the player's inventory is used.
+
+@slotadd EQUIP
+    Adds a slot to the specified EQUIP type. EQUIP types: TOP (3),
+    BOTTOM (5) or WEAPON (13)
+
+@enchant EQUIP TAROT SOUL
+    Set the enchantment TAROT and SOUL effects for the specified EQUIP
+    type. Use 0 to remove. EQUIP types: HEAD (0), FACE (1), NECK (2),
+    TOP (3), ARMS (4), BOTTOM (5), FEET (6), COMP (7), RING (8), EARRING
+    (9), EXTRA (10), BACK (11), TALISMAN (12) or WEAPON (13)
+
+@spirit EQUIP BASIC SPECIAL [B1 B2 B3]
+    Set the spirit fusion BASIC and SPECIAL effects for the specified
+    EQUIP type. Effect values are equal to the item ID they are gained
+    from. B1-B3 fusion bonuses from 0-50 can also be specified but will
+    otherwise be ignored. EQUIP types: HEAD (0), FACE (1), NECK (2), TOP
+    (3), ARMS (4), BOTTOM (5), FEET (6), COMP (7), RING (8), EARRING
+    (9), EXTRA (10), BACK (11), TALISMAN (12) or WEAPON (13)
+
+@coin AMOUNT
+    Set the current character's casino coin AMOUNT.
+
+@cowrie AMOUNT
+    Set the current character's cowrie AMOUNT.
+
+@bethel INDEX AMOUNT
+    Set the current character's bethel AMOUNT corresponding to the
+    supplied INDEX (0-4).
+
+@bp POINTS
+    Set the current character's Battle Point current amount and total
+    accumulated points as well.
+
+@gp VALUE [NAME]
+    Set the Grade Points on the character NAME or to yourself if no NAME
+    is specified. Ranked grades are 1000 points higher than the value
+    displayed (ex: 1000 for ranked base).
+
+@cp AMOUNT [NAME]
+    Adds AMOUNT of CP to the character NAME, or to yourself if no NAME
+    is specified. Use negative values to remove CP.
+
+@ziotite SMALL LARGE
+    Add to the current team's SMALL and LARGE ziotite.
+
+COMBAT TESTING (STATUS, TOKUSEI, ENEMIES)
+------------------------------------------------------------------------
+@effect ID [+/-]STACK [DEMON] [NAME]
+    Add or sets the stack count for status effect with the given ID to
+    the character specified by NAME (case sensitive). If NAME is not
+    set, the current account is targeted. If DEMON is set to the word
+    "demon" (case insensitive), the command targets the character's
+    currently-summoned demon.
+
+@tokusei CLEAR|ID [STACK] [DEMON] [NAME]
+    Adds STACK of a tokusei given by the specified ID to the player
+    specified by NAME or the player's demon if DEMON is set to 'demon'.
+    If no name is specified, the current account is targeted. STACK must
+    be specified if CLEAR is not set to 'clear'. DEMON may not be
+    specified if CLEAR is set.
+
+@enemy ID|NAME [AI [X Y [ROT]]]
+    Spawns the enemy with the given ID or NAME at the position of the
+    character or at the position X, Y with the rotation ROT. If AI is
+    specified that AI type is used instead of the default.
+
+@spawn
+    Spawn the max number of enemies in each spawn group in the current
+    zone.
+
+@speed MULTIPLIER [DEMON]
+    Multiplies the speed of the player by MULTIPLIER or the demon if
+    DEMON is set to 'demon'.
+
+@penalty [NAME]
+    Remove all PvP penalties on the character NAME or to yourself if no
+    NAME is specified.
+
+MOVEMENT AND ZONES
+------------------------------------------------------------------------
+@zone ID
+    Moves the player to the zone specified by ID.
+
+@pos [SPOTID|X Y]
+    Prints out the X, Y position of the player or moves the player to
+    the given SPOTID or X, Y position.
+
+@goto [SELF] NAME
+    If SELF is set to 'self' the player is moved to the character with
+    the given name. If not set, the character with the given name is
+    moved to the player.
+
+@instance ID [VARIANTID]
+    Creates a dungeon instance given the specified instance ID and
+    optional variant ID. This IDs must be in the XML data.
+
+@worldtime OFFSET
+    Adjusts the current channel's world clock time by a specified OFFSET
+    (in seconds). 2 for 1 minute, 120 for 1 hour and 1440 for 1 phase.
+
+QUESTS, EVENTS AND FLAGS
+------------------------------------------------------------------------
+@quest ID PHASE
+    Sets the phase of the quest given by the ID to the phase PHASE. A
+    phase of -1 is complete and -2 is a reset.
+
+@event [ID [PARAMS]]
+    Starts an event specified by ID or returns the current event if not
+    specified. If additional PARAMS are supplied and the event is a
+    transform event, the params will be used to override the existing
+    transform script params.
+
+@flag TYPE [CID KEY [VALUE]]
+    List, get or set zone flags. TYPE must be 'zone' or 'inst'. CID may
+    be 0 for no specific character. If VALUE is not given the key is
+    printed out instead of set.
+
+@counter ID [NAME] [VALUE]
+    View a world counter with a specific ID or view/add to the VALUE of
+    the counter from character with NAME.
+
+@drequest [NAME]
+    Resets the Demon Requests (demon quests) of the character NAME, or
+    your own if no NAME is given.
+
+@dstreak VALUE [NAME]
+    Sets the Demon Request completion streak to VALUE for the character
+    NAME, or your own if no NAME is given.
+
+PLAYERS AND MODERATION
+------------------------------------------------------------------------
+@online [NAME]
+    Print how many players are online or check if the character with a
+    specific NAME is online.
+
+@kick NAME [1/2/3]
+    Kicks the character with the given NAME from the server. If their
+    account is not on the channel, remove them with options 1 (request
+    current channel, default), 2 (request any channel) or 3 (remove from
+    world/lobby, USE AT OWN RISK).
+
+@ban NAME [1/2/3] [DURATION] [REASON...]
+    Bans the account which owns the character NAME. If the account is
+    not on the channel, remove them with options 1 (request current
+    channel, default), 2 (request any channel) or 3 (remove from
+    world/lobby, USE AT OWN RISK). DURATION is in hours from the time of
+    command entry. If it is not specified, it is assumed to be 0 which
+    means the ban is considered permanent. A DURATION must be specified
+    in order for a REASON to be written. Upon success, all open postings
+    belonging to the account related to the current channel will be
+    immediately closed. The command can be used repeatedly for multi-
+    channel setups.
+
+@reported [COUNT|PLAYERNAME]
+    Get a set of unresolved reported player records of a specified COUNT
+    or targeted at a specific PLAYERNAME.
+
+@resolve ENTRYUID
+    Resolve a reported player record by UID. Records can be retrieved
+    via @reported.
+
+@announce COLOR MESSAGE...
+    Announce a ticker MESSAGE with the specified COLOR.
+
+@tickermessage MESSAGE...
+    Sends the ticker message MESSAGE to all players.
+
+@support VALUE
+    Show or hide the player character's support display state based on
+    VALUE 1 (on) or 0 (off).
+
+SERVER
+------------------------------------------------------------------------
+@help [GMAND]
+    Lists the GMands supported by the server or prints the description
+    of the GMAND specified.
+
+@version
+    Prints version information for the running server.
+
+@license
+    Prints license information for the running server.
+
+@crash
+    Causes the server to crash for testing the database.
+
+Generated from the server's own @help text (server/channel/src/ChatManager.cpp).
