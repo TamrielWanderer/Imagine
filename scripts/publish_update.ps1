@@ -32,6 +32,9 @@ if (-not (Test-Path $rehash)) { Write-Host "comp_rehash.exe not found ($rehash).
 New-Item -ItemType Directory -Force -Path $patch, $base | Out-Null
 if ($Clear) { Get-ChildItem $patch | Remove-Item -Recurse -Force }
 
+# Through the .bat (powershell -File) a comma list arrives as one string.
+$Add = @($Add | ForEach-Object { $_ -split ',' } | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+
 if ($Add.Count) {
     $clientFile = Join-Path $srv 'client_dir.txt'
     if (-not (Test-Path $clientFile)) { Write-Host 'Unknown client folder: run start_server.ps1 -ClientDir <folder> once.'; exit 1 }
