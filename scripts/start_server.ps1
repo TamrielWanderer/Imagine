@@ -168,15 +168,16 @@ foreach ($port in 10666, 10999, 18666, 14666) {
 }
 Select-String -Path "$srv\logs\*.out.log" -Pattern 'ERROR|CRITICAL' |
     ForEach-Object { Say ("[{0}] {1}" -f $_.Filename, $_.Line) }
-# Update server for the game launcher, when something has been published.
+# Update server for the game launcher (client updates and the launcher banner).
 Get-CimInstance Win32_Process -Filter "Name='powershell.exe'" |
     Where-Object { $_.CommandLine -like '*serve_update.ps1*' } |
     ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
-if (Test-Path (Join-Path $srv 'update\files\hashlist.ver')) {
+if ($true) {
     Start-Process powershell -WindowStyle Hidden -ArgumentList @('-NoProfile', '-ExecutionPolicy', 'Bypass',
         '-File', "`"$PSScriptRoot\serve_update.ps1`"")
     Start-Sleep -Seconds 2
     $updHost = if ($LanIP) { $LanIP } else { '127.0.0.1' }
     Say "update server: http://${updHost}:10080/ (listening: $([bool](Get-NetTCPConnection -LocalPort 10080 -State Listen -ErrorAction SilentlyContinue)))"
+    Say "launcher banner: http://${updHost}:10080/updatebanner/ (news: $srv\updatebanner\news.json)"
 }
 Say 'Servers are running. Stop them with stop_server.bat.'

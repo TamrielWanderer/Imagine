@@ -4,13 +4,17 @@
 #   set_update_url.ps1 -ClientDir D:\Games\ReIMAGINE -Url http://192.168.0.149:10080/
 #   set_update_url.ps1 -Restore                 # back to the official ReIMAGINE updates
 #
+# It also points the launcher's page (Information =) at the server's banner,
+# <update server>/updatebanner/ (-NoBanner keeps the current page).
+#
 # The original ImagineUpdate.dat is saved once as ImagineUpdate.dat.reimagine.
 # On another PC, copy this script there (or edit BaseURL1 in ImagineUpdate.dat
 # by hand to the same address).
 param(
     [string]$ClientDir = '',
     [string]$Url = '',
-    [switch]$Restore
+    [switch]$Restore,
+    [switch]$NoBanner
 )
 $ErrorActionPreference = 'Stop'
 . "$PSScriptRoot\common.ps1"
@@ -39,5 +43,14 @@ if (-not $Url) {
 
 $text = Get-Content -Raw $dat
 $text = $text -replace '(?m)^BaseURL1\s*=.*$', "BaseURL1 = $Url"
+if (-not $NoBanner) {
+    $info = $Url.TrimEnd('/') + '/updatebanner/'
+    if ($text -match '(?m)^Information\s*=') {
+        $text = $text -replace '(?m)^Information\s*=.*$', "Information = $info"
+    } else {
+        $text = $text.TrimEnd() + "`r`nInformation = $info"
+    }
+}
 Set-Content -Path $dat -Value $text.TrimEnd() -Encoding ascii -NoNewline
 Write-Host "ImagineUpdate.exe in $ClientDir now updates from $Url"
+if (-not $NoBanner) { Write-Host "and shows the banner page $($Url.TrimEnd('/'))/updatebanner/" }

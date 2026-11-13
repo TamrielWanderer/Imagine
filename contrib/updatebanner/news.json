@@ -1,0 +1,22 @@
+[
+  {
+    "date": "2026-11-13",
+    "title": "The game is now in English",
+    "text": "Menus, items, skills, the demon compendium, quests, story and NPC dialogue are translated. Report text that reads wrong to the server admin."
+  },
+  {
+    "date": "2026-11-13",
+    "title": "Extra shortcut bars, keys and macros",
+    "text": "Up to 6 more shortcut bars, a key for every slot and macros. Set them up with KeyConfigTool.exe in the game folder."
+  },
+  {
+    "date": "2026-11-13",
+    "title": "Quality of life",
+    "text": "@sort and @deposit chat commands, bigger item stacks, a smarter partner demon and a reworked stagger system that rewards dodging and countering."
+  },
+  {
+    "date": "2026-11-13",
+    "title": "Player portal",
+    "text": "Create your account and see your characters, stats, alignment and demons on the player portal (link on the left)."
+  }
+]

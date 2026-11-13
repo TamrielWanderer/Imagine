@@ -1,0 +1,125 @@
+<!doctype html>
+<!--
+Launcher banner: the page ImagineUpdate.exe shows (Information = in
+ImagineUpdate.dat). Served by scripts/serve_update.ps1 at /updatebanner/.
+Edit news.json next to this file to post news; the server's copy is in
+local-server\updatebanner (copied from contrib\updatebanner the first time).
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>IMAGINE</title>
+<style>
+  :root { --bg:#0d0e12; --panel:#161821; --line:#2c3045; --text:#e6e8ef; --muted:#9aa0b4;
+          --accent:#c8102e; --gold:#e8b04a; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
+               font: 13px/1.45 "Segoe UI", system-ui, sans-serif; }
+  body { display: flex; flex-direction: column; overflow: hidden; }
+  header { padding: 10px 14px 8px; border-bottom: 1px solid var(--line); display: flex;
+           align-items: baseline; gap: 10px; }
+  header h1 { margin: 0; font-size: 16px; letter-spacing: .4px; }
+  header h1 span { color: var(--accent); }
+  header .status { margin-left: auto; color: var(--muted); font-size: 12px; }
+  .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 5px;
+         background: #666; vertical-align: 0; }
+  .dot.on { background: #3fbf6f; } .dot.off { background: var(--accent); }
+  main { flex: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 12px 14px;
+         min-height: 0; }
+  @media (max-width: 560px) { main { grid-template-columns: 1fr; overflow-y: auto; }
+                              section { overflow: visible !important; } }
+  section { background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+            padding: 10px 12px; overflow-y: auto; min-height: 0; }
+  h2 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase; letter-spacing: .8px;
+       color: var(--gold); }
+  ol { margin: 0; padding-left: 20px; }
+  ol li { margin-bottom: 7px; }
+  b { color: #fff; }
+  code { background: #232637; padding: 0 4px; border-radius: 3px; font-size: 12px; }
+  a { color: #7fb2ff; }
+  .news { margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
+  .news:last-child { border-bottom: 0; }
+  .news .date { color: var(--muted); font-size: 11px; }
+  .news h3 { margin: 1px 0 3px; font-size: 13px; }
+  .news p { margin: 0; color: #c9ccd8; white-space: pre-line; }
+  .muted { color: var(--muted); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Shin Megami Tensei <span>IMAGINE</span></h1>
+  <div class="status"><span class="dot" id="dot"></span><span id="status">Checking server...</span></div>
+</header>
+<main>
+  <section>
+    <h2>New here? Start with this</h2>
+    <ol>
+      <li><b>Create an account</b> on the <a id="portal" href="#">player portal</a>.
+        The same page shows your characters, stats and demons later.</li>
+      <li><b>Press Start</b> in this launcher and log in with that account.
+        The launcher downloads game updates by itself; let it finish first.</li>
+      <li><b>Set your keys, extra shortcut bars and macros</b> with
+        <code>KeyConfigTool.exe</code> in the game folder. Close the game before saving.</li>
+      <li><b>Handy chat commands:</b> <code>@sort</code> sorts your inventory,
+        <code>@deposit</code> stores items in the depository, <code>@qol</code> lists them all.</li>
+      <li><b>Extra bars:</b> each bar shows its own page (arrows on the bar). Drag skills and
+        items onto them like the main bar.</li>
+      <li>Please don't edit <code>ImagineUpdate.dat</code>: it points this launcher at the server.</li>
+    </ol>
+  </section>
+  <section>
+    <h2>News</h2>
+    <div id="news"><p class="muted">Loading news...</p></div>
+  </section>
+</main>
+<script>
+"use strict";
+// The game's web server (lobby) runs on 10999 on the same host as this page.
+var host = location.hostname || "127.0.0.1";
+var portal = "http://" + host + ":10999/portal/";
+document.getElementById("portal").href = portal;
+
+function esc(s) {
+  return String(s).replace(/[&<>"']/g, function (c) {
+    return {"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c];
+  });
+}
+
+var xhr = new XMLHttpRequest();
+xhr.open("GET", "news.json?" + Date.now());
+xhr.onload = function () {
+  var box = document.getElementById("news");
+  try {
+    var items = JSON.parse(xhr.responseText);
+    if (!items.length) { box.innerHTML = '<p class="muted">No news yet.</p>'; return; }
+    box.innerHTML = items.map(function (n) {
+      return '<div class="news"><div class="date">' + esc(n.date || "") + '</div><h3>' +
+        esc(n.title || "") + '</h3><p>' + esc(n.text || "") + '</p></div>';
+    }).join("");
+  } catch (e) {
+    box.innerHTML = '<p class="muted">The news could not be read (news.json).</p>';
+  }
+};
+xhr.onerror = function () {
+  document.getElementById("news").innerHTML = '<p class="muted">The news could not be loaded.</p>';
+};
+xhr.send();
+
+// Is the game server up? Ask the portal on the lobby's web port (an opaque
+// cross-origin request: it only tells whether the server answered).
+function setStatus(on) {
+  document.getElementById("dot").className = "dot " + (on ? "on" : "off");
+  document.getElementById("status").textContent = on ? "Server online" : "Server offline";
+}
+if (window.fetch) {
+  var timer = setTimeout(function () { setStatus(false); }, 5000);
+  fetch(portal, { mode: "no-cors", cache: "no-store" })
+    .then(function () { clearTimeout(timer); setStatus(true); },
+          function () { clearTimeout(timer); setStatus(false); });
+} else {
+  document.getElementById("status").textContent = "";
+}
+</script>
+</body>
+</html>
