@@ -35,6 +35,24 @@ python partner_ai_patch.py "<client folder>" --debug    # also write a debug log
 
 The patch checks the original bytes before it writes anything, and it can upgrade a client patched with an older version. The reverse engineering notes are in `docs/client-partner-ai-notes.md`. The scripts `build_learning_cave.py`, `build_aggressive_cave.py` and `build_skill_filter.py` rebuild the added code.
 
+**Extra shortcut bars, keys and macros** (`contrib/client-patches/shortcut_bars_patch.py`)
+
+A second client patch (it works with or without the partner AI patch):
+
+- **Up to 6 more shortcut bars on screen.** Each bar shows its own page and keeps its own arrows, so pages 1, 2 and 3 can all be visible at once. Clicking, dragging skills or items onto them and rearranging slots work like on the main bar.
+- **A key for every slot.** The new key actions `ShortCutBar1_00` to `ShortCutBar6_15` (bar 1-6, slot 00-15) go in `KeyConfigOption.txt`, for example `-ShortCutBar1_00 SHIFT+1`. Modifiers work like the game's own keys.
+- **Macros.** `ShortCutMacro01` to `ShortCutMacro10` run up to 8 slots from a list in `Macros.txt`: either one step per key press (like a cast sequence, starting over after a few seconds) or all at once.
+
+The bars are set in `ShortcutBars.txt` in the client folder: one line per bar, `page layout x y` (page 1-10, layout 0-3 like `ShortcutWindowType`, position or `-1 -1` for above the main bar). The game writes the file with two bars (pages 2 and 3) and an explanation the first time it starts, and saves pages and positions there when a bar moves. `Macros.txt` is written the same way with an explanation and an example.
+
+```
+python shortcut_bars_patch.py "<client folder>\ImagineClient.exe"            # apply
+python shortcut_bars_patch.py "<client folder>\ImagineClient.exe" --check    # show what is applied
+python shortcut_bars_patch.py "<client folder>\ImagineClient.exe" --revert   # remove it
+```
+
+Like the partner AI patch it updates the hash in `comp_client.dll`; publish both files with the updater. Notes: `docs/client-shortcut-bars-notes.md`; the code is `shortcut_bars.asm` (rebuild with `build_shortcut_bars.py`, needs nasm).
+
 **Stagger rework** (channel server, `StaggerRework` in `channelconfig.xml`)
 
 In the original game, hits stop the target (knockback and hit stun) and nothing limits how long a target can be kept stunned. Enemy groups and players could chain hits so the target never acted. The rework keeps hits feeling strong but makes stagger something you earn, in the spirit of the Press Turn system:
