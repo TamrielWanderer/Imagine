@@ -9,7 +9,10 @@ script patches your own copy.
 | `menus_system.json` | Menus, buttons, system and shop messages, help pages, status effects, valuables, titles, NPC and map names, demon names (about 2,400 strings in 21 files) |
 | `gameplay.json` | Every item and skill name and description, barter (fusion/exchange) NPC lines, demon compendium lore, and repaired garbled quotes in the old English item texts (about 17,000 strings in 5 files) |
 
-Not covered yet: NPC dialogue, event and story text, quests.
+| `story.json` | All event, NPC and story dialogue (both event message files), the Hourai club conversations, and character/achievement messages (about 50,000 strings in 4 files) |
+
+With these three tables the client has no Japanese text left in the files
+the tools can read. Quest titles were already in English in the client.
 
 The gameplay table was translated from the Japanese client because no
 official English data survives. Names follow the glossary used by the
