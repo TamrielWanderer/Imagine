@@ -4,7 +4,8 @@ rem bars client patch. Uses the client folder start_server.ps1 remembered,
 rem or the folder given as the first argument. Close the game first.
 setlocal
 set CLIENT=%~1
-if "%CLIENT%"=="" if exist "%~dp0..\local-server\client_dir.txt" set /p CLIENT=<"%~dp0..\local-server\client_dir.txt"
+rem client_dir.txt is written by PowerShell with a BOM, so read it with PowerShell
+if "%CLIENT%"=="" if exist "%~dp0..\local-server\client_dir.txt" for /f "usebackq delims=" %%I in (`powershell -NoProfile -Command "(Get-Content -LiteralPath '%~dp0..\local-server\client_dir.txt' -First 1).Trim()"`) do set "CLIENT=%%I"
 if "%CLIENT%"=="" (
   echo Usage: shortcut_bars_patch.bat "client folder" [--check^|--revert]
   pause
