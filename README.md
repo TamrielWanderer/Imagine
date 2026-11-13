@@ -68,6 +68,22 @@ The rules apply the same way to players, demons and enemies. Settings (all in `c
 
 `scripts/start_server.ps1 -StaggerRework on|off` switches it (on by default in this branch, remembered in `stagger_rework.txt`).
 
+**Inventory QoL** (channel server and `contrib/qol/stack_sizes.py`)
+
+The client has no buttons for these, so they are chat commands any player can use (not only GMs):
+
+| Command | What it does |
+| --- | --- |
+| `@sort` | Merges partial stacks of the same item and sorts the inventory by category and item. Equipped items keep their slots. |
+| `@sort depo [N]` | The same for item depository box N (1 is the main box). |
+| `@deposit` | Quick stack: moves inventory items into the item depository, but only items the depository already holds. Existing stacks are topped up first, then empty slots are used (a box already holding that item first). |
+| `@deposit all` | Stores every storable item. |
+| `@qol` | Lists these commands. |
+
+Equipped items, Macca and Magnetite never move, and items that can't be stored stay in the inventory. Settings in `channelconfig.xml`: `QoLCommands` (default `true`) turns the commands on, and `QuickDepositAnywhere` (default `true`) lets `@deposit` work anywhere. Set it to `false` to require the depository window to be open.
+
+**Bigger item stacks.** `scripts/stack_sizes.bat` raises the stack limit of stackable items in `BinaryData/Shield/ItemData.sbin`, which the server and the client both read. By default every limit from 10 up is multiplied by 10, capped at 9999 (10 → 100, 100 → 1000, 1000 → 9999). Limits under 10 (items you're only meant to hold a few of) and limits already above 9999 don't change. The numbers can be changed (`-Multiplier`, `-Min`, `-Max`), `-Check` shows the changes without writing, and `-Restore` puts the original file back. Running it again always starts from the original, so limits are never multiplied twice. Restart the server afterwards and publish the file with `publish_update.bat -Add BinaryData\Shield\ItemData.sbin` so every player's client has the same limits.
+
 **Server partner assist (off by default)**
 
 An earlier server-side try at the same goal. The channel server can make the partner demon use skills on its own. It is turned off by default and is not needed with the client patch. Options in `channelconfig.xml`: `PartnerCombatAssist`, `PartnerAssistInterval`, `PartnerAssistHealPercent`, `PartnerAssistBuffInterval`, `PartnerAssistChase` and `PartnerAssistOwnSkills`. `scripts/start_server.ps1 -PartnerAssist on|off` switches it.

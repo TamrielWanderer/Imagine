@@ -24,6 +24,8 @@
         <member type="u16" name="PartnerAssistBuffInterval" default="60"/>
         <member type="bool" name="PartnerAssistChase" default="false"/>
         <member type="bool" name="PartnerAssistOwnSkills" default="true"/>
+        <member type="bool" name="QoLCommands" default="true"/>
+        <member type="bool" name="QuickDepositAnywhere" default="true"/>
         <member type="bool" name="StaggerRework" default="false"/>
         <member type="u16" name="StaggerWeakPercent" default="300"/>
         <member type="u16" name="StaggerNormalPercent" default="100"/>

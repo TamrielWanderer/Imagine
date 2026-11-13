@@ -734,6 +734,21 @@ class ChatManager {
       const std::shared_ptr<channel::ChannelClientConnection>& client,
       const std::list<libcomp::String>& args);
 
+  /** QoL: list the player QoL commands */
+  bool GMCommand_QoLHelp(
+      const std::shared_ptr<channel::ChannelClientConnection>& client,
+      const std::list<libcomp::String>& args);
+
+  /** QoL: @sort [depo N] - merge stacks and sort a box */
+  bool GMCommand_Sort(
+      const std::shared_ptr<channel::ChannelClientConnection>& client,
+      const std::list<libcomp::String>& args);
+
+  /** QoL: @deposit [all] - move inventory items to the item depository */
+  bool GMCommand_Deposit(
+      const std::shared_ptr<channel::ChannelClientConnection>& client,
+      const std::list<libcomp::String>& args);
+
   /**
    * GM command to update the client's team's ziotite.
    * @param client Pointer to the client that sent the command

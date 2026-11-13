@@ -38,7 +38,10 @@
 // Standard C++11 Includes
 #include <math.h>
 
+#include <algorithm>
 #include <limits>
+#include <set>
+#include <tuple>
 
 // object Includes
 #include <Account.h>
@@ -1791,6 +1794,310 @@ void CharacterManager::SendItemBoxData(
           client, objects::DemonQuest::Type_t::ITEM);
     }
   }
+}
+
+namespace {
+std::set<std::shared_ptr<objects::Item>> GetEquippedItemSet(
+    const std::shared_ptr<objects::Character>& character) {
+  std::set<std::shared_ptr<objects::Item>> equipped;
+  for (size_t i = 0; i < 15; i++) {
+    auto equip = character->GetEquippedItems(i).Get();
+    if (equip) {
+      equipped.insert(equip);
+    }
+  }
+  return equipped;
+}
+}  // namespace
+
+bool CharacterManager::SortItemBox(
+    const std::shared_ptr<ChannelClientConnection>& client,
+    const std::shared_ptr<objects::ItemBox>& box) {
+  auto state = client->GetClientState();
+  auto character = state->GetCharacterState()->GetEntity();
+  auto server = mServer.lock();
+  auto definitionManager = server->GetDefinitionManager();
+  if (!box || !character || state->GetExchangeSession()) {
+    return false;
+  }
+
+  auto equipped = GetEquippedItemSet(character);
+  auto dbChanges = libcomp::DatabaseChangeSet::Create(state->GetAccountUID());
+
+  std::vector<std::shared_ptr<objects::Item>> items;
+  for (size_t slot = 0; slot < 50; slot++) {
+    auto item = box->GetItems(slot).Get();
+    if (item && equipped.find(item) == equipped.end()) {
+      items.push_back(item);
+    }
+  }
+
+  // Merge partial stacks of the same item
+  for (size_t i = 0; i < items.size(); i++) {
+    auto target = items[i];
+    if (!target) {
+      continue;
+    }
+
+    auto def = definitionManager->GetItemData(target->GetType());
+    uint16_t maxStack = def ? def->GetPossession()->GetStackSize() : 1;
+    if (maxStack <= 1) {
+      continue;
+    }
+
+    for (size_t k = i + 1; k < items.size(); k++) {
+      if (target->GetStackSize() >= maxStack) {
+        break;
+      }
+
+      auto source = items[k];
+      if (!source || source->GetType() != target->GetType() ||
+          source->GetRentalExpiration() != target->GetRentalExpiration()) {
+        continue;
+      }
+
+      uint16_t move = (uint16_t)std::min<uint32_t>(
+          (uint32_t)(maxStack - target->GetStackSize()),
+          (uint32_t)source->GetStackSize());
+      target->SetStackSize((uint16_t)(target->GetStackSize() + move));
+      source->SetStackSize((uint16_t)(source->GetStackSize() - move));
+      dbChanges->Update(target);
+
+      if (source->GetStackSize() == 0) {
+        box->SetItems((size_t)source->GetBoxSlot(), NULLUUID);
+        dbChanges->Delete(source);
+        items[k] = nullptr;
+      } else {
+        dbChanges->Update(source);
+      }
+    }
+  }
+
+  items.erase(std::remove(items.begin(), items.end(), nullptr), items.end());
+
+  auto sortKey = [definitionManager](const std::shared_ptr<objects::Item>& item) {
+    auto def = definitionManager->GetItemData(item->GetType());
+    uint32_t mainCat = 255, subCat = 255;
+    if (def) {
+      mainCat = def->GetCommon()->GetCategory()->GetMainCategory();
+      subCat = def->GetCommon()->GetCategory()->GetSubCategory();
+    }
+    return std::make_tuple(mainCat, subCat, item->GetType(),
+                           (uint32_t)(65535 - item->GetStackSize()),
+                           item->GetRentalExpiration());
+  };
+
+  std::stable_sort(items.begin(), items.end(),
+                   [&sortKey](const std::shared_ptr<objects::Item>& a,
+                              const std::shared_ptr<objects::Item>& b) {
+                     return sortKey(a) < sortKey(b);
+                   });
+
+  // Clear every slot not held by an equipped item, then refill in order
+  for (size_t slot = 0; slot < 50; slot++) {
+    auto item = box->GetItems(slot).Get();
+    if (!item || equipped.find(item) == equipped.end()) {
+      box->SetItems(slot, NULLUUID);
+    }
+  }
+
+  size_t slot = 0;
+  for (auto item : items) {
+    while (slot < 50 && !box->GetItems(slot).IsNull()) {
+      slot++;
+    }
+
+    if (slot >= 50) {
+      break;  // Should not happen, the same items are put back
+    }
+
+    item->SetBoxSlot((int8_t)slot);
+    box->SetItems(slot, item);
+    dbChanges->Update(item);
+    slot++;
+  }
+
+  dbChanges->Update(box);
+  server->GetWorldDatabase()->QueueChangeSet(dbChanges);
+
+  SendItemBoxData(client, box);
+
+  return true;
+}
+
+bool CharacterManager::QuickDeposit(
+    const std::shared_ptr<ChannelClientConnection>& client, bool allItems,
+    uint32_t& movedStacks, uint32_t& movedItems) {
+  movedStacks = 0;
+  movedItems = 0;
+
+  auto state = client->GetClientState();
+  auto character = state->GetCharacterState()->GetEntity();
+  auto worldData = state->GetAccountWorldData();
+  auto server = mServer.lock();
+  auto definitionManager = server->GetDefinitionManager();
+  if (!character || !worldData || state->GetExchangeSession()) {
+    return false;
+  }
+
+  auto inventory = character->GetItemBoxes(0).Get();
+  uint32_t now = (uint32_t)std::time(0);
+
+  std::vector<std::shared_ptr<objects::ItemBox>> depos;
+  for (size_t i = 0; i < worldData->ItemBoxesCount(); i++) {
+    auto depo = worldData->GetItemBoxes(i).Get();
+    if (!depo) {
+      continue;
+    }
+
+    if (i > 0 && (depo->GetRentalExpiration() == 0 ||
+                  depo->GetRentalExpiration() < now)) {
+      continue;
+    }
+
+    depos.push_back(depo);
+  }
+
+  if (!inventory || depos.empty()) {
+    return false;
+  }
+
+  std::set<uint32_t> storedTypes;
+  for (auto depo : depos) {
+    for (auto item : depo->GetItems()) {
+      if (!item.IsNull()) {
+        storedTypes.insert(item->GetType());
+      }
+    }
+  }
+
+  auto equipped = GetEquippedItemSet(character);
+  auto dbChanges = libcomp::DatabaseChangeSet::Create(state->GetAccountUID());
+  std::list<uint16_t> invSlots;
+  std::map<std::shared_ptr<objects::ItemBox>, std::list<uint16_t>> depoSlots;
+
+  for (size_t s = 0; s < 50; s++) {
+    auto item = inventory->GetItems(s).Get();
+    if (!item || equipped.find(item) != equipped.end()) {
+      continue;
+    }
+
+    uint32_t type = item->GetType();
+    if (type == SVR_CONST.ITEM_MACCA || type == SVR_CONST.ITEM_MACCA_NOTE ||
+        type == SVR_CONST.ITEM_MAGNETITE) {
+      continue;
+    }
+
+    auto def = definitionManager->GetItemData(type);
+    if (!def || (def->GetBasic()->GetFlags() & ITEM_FLAG_STORE) == 0) {
+      continue;
+    }
+
+    if (!allItems && storedTypes.find(type) == storedTypes.end()) {
+      continue;
+    }
+
+    uint16_t maxStack = def->GetPossession()->GetStackSize();
+    uint16_t before = item->GetStackSize();
+
+    // Top up existing stacks first
+    if (maxStack > 1) {
+      for (auto depo : depos) {
+        for (size_t ds = 0; ds < 50 && item->GetStackSize() > 0; ds++) {
+          auto stored = depo->GetItems(ds).Get();
+          if (!stored || stored->GetType() != type ||
+              stored->GetRentalExpiration() != item->GetRentalExpiration() ||
+              stored->GetStackSize() >= maxStack) {
+            continue;
+          }
+
+          uint16_t move = (uint16_t)std::min<uint32_t>(
+              (uint32_t)(maxStack - stored->GetStackSize()),
+              (uint32_t)item->GetStackSize());
+          stored->SetStackSize((uint16_t)(stored->GetStackSize() + move));
+          item->SetStackSize((uint16_t)(item->GetStackSize() - move));
+          dbChanges->Update(stored);
+          depoSlots[depo].push_back((uint16_t)ds);
+        }
+      }
+    }
+
+    bool changed = item->GetStackSize() != before;
+    if (item->GetStackSize() == 0) {
+      inventory->SetItems(s, NULLUUID);
+      dbChanges->Delete(item);
+    } else {
+      // Move the rest to an empty slot, preferring a box holding this type
+      std::shared_ptr<objects::ItemBox> destBox;
+      size_t destSlot = 0;
+      for (int pass = 0; pass < 2 && !destBox; pass++) {
+        for (auto depo : depos) {
+          bool holdsType = false;
+          for (auto stored : depo->GetItems()) {
+            if (!stored.IsNull() && stored->GetType() == type) {
+              holdsType = true;
+              break;
+            }
+          }
+
+          if (pass == 0 && !holdsType) {
+            continue;
+          }
+
+          for (size_t ds = 0; ds < 50; ds++) {
+            if (depo->GetItems(ds).IsNull()) {
+              destBox = depo;
+              destSlot = ds;
+              break;
+            }
+          }
+
+          if (destBox) {
+            break;
+          }
+        }
+      }
+
+      if (destBox) {
+        item->SetItemBox(destBox->GetUUID());
+        item->SetBoxSlot((int8_t)destSlot);
+        destBox->SetItems(destSlot, item);
+        inventory->SetItems(s, NULLUUID);
+        dbChanges->Update(item);
+        depoSlots[destBox].push_back((uint16_t)destSlot);
+        changed = true;
+      } else if (changed) {
+        dbChanges->Update(item);
+      }
+    }
+
+    if (changed) {
+      invSlots.push_back((uint16_t)s);
+      movedStacks++;
+      movedItems += (uint32_t)(before - (inventory->GetItems(s).IsNull()
+                                             ? 0
+                                             : item->GetStackSize()));
+    }
+  }
+
+  if (invSlots.empty()) {
+    return true;
+  }
+
+  dbChanges->Update(inventory);
+  for (auto& pair : depoSlots) {
+    dbChanges->Update(pair.first);
+  }
+  server->GetWorldDatabase()->QueueChangeSet(dbChanges);
+
+  SendItemBoxData(client, inventory, invSlots, true);
+  for (auto& pair : depoSlots) {
+    pair.second.sort();
+    pair.second.unique();
+    SendItemBoxData(client, pair.first, pair.second, false);
+  }
+
+  return true;
 }
 
 std::list<std::shared_ptr<objects::Item>> CharacterManager::GetExistingItems(

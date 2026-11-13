@@ -13,6 +13,14 @@ HOW TO USE
 - IDs are the reliable way to pick items, demons and skills. Names must
   match the game data exactly, which is mostly Japanese.
 
+PLAYER COMMANDS (no GM level needed, see QoLCommands in channelconfig.xml)
+------------------------------------------------------------------------
+  @sort                    Stack and sort your inventory.
+  @sort depo [N]           Stack and sort depository box N (1 = main box).
+  @deposit                 Store items the depository already holds.
+  @deposit all             Store every storable item.
+  @qol                     List these commands.
+
 QUICK TESTING RECIPES
 ------------------------------------------------------------------------
   @levelup 99              Your character to level 99.

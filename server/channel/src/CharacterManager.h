@@ -622,6 +622,32 @@ class CharacterManager {
       int64_t itemID);
 
   /**
+   * QoL: merge partial stacks of the same item and sort the items in a box
+   * by category and type. Equipped items keep their slots.
+   * @param client Pointer to the client connection
+   * @param box Inventory or item depository box to sort
+   * @return true if the box was sorted
+   */
+  bool SortItemBox(
+      const std::shared_ptr<channel::ChannelClientConnection>& client,
+      const std::shared_ptr<objects::ItemBox>& box);
+
+  /**
+   * QoL: move inventory items into the item depository. Items are added to
+   * existing stacks first, then to empty slots (preferring a box that
+   * already holds that item). Equipped items, Macca and Magnetite stay.
+   * @param client Pointer to the client connection
+   * @param allItems true to store every storable item, false to store only
+   *  item types the depository already holds
+   * @param movedStacks Output: inventory slots emptied or reduced
+   * @param movedItems Output: total item count moved
+   * @return false if no depository box is available
+   */
+  bool QuickDeposit(
+      const std::shared_ptr<channel::ChannelClientConnection>& client,
+      bool allItems, uint32_t& movedStacks, uint32_t& movedItems);
+
+  /**
    * Unequip the supplied item from the client's character.  Unlike
    * EquipItem, the item will not be toggled if it isn't equipped.
    * @param client Pointer to the client connection containing

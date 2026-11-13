@@ -52,6 +52,7 @@
 #include <EventState.h>
 #include <Expertise.h>
 #include <InstanceAccess.h>
+#include <EventOpenMenu.h>
 #include <Item.h>
 #include <ItemBox.h>
 #include <MiDevilData.h>
@@ -137,7 +138,10 @@ ChatManager::ChatManager(const std::weak_ptr<ChannelServer>& server)
   mGMands["resolve"] = &ChatManager::GMCommand_Resolve;
   mGMands["reunion"] = &ChatManager::GMCommand_Reunion;
   mGMands["scrap"] = &ChatManager::GMCommand_Scrap;
+  mGMands["qol"] = &ChatManager::GMCommand_QoLHelp;
   mGMands["skill"] = &ChatManager::GMCommand_Skill;
+  mGMands["sort"] = &ChatManager::GMCommand_Sort;
+  mGMands["deposit"] = &ChatManager::GMCommand_Deposit;
   mGMands["forgetskill"] = &ChatManager::GMCommand_ForgetSkill;
   mGMands["skillpoint"] = &ChatManager::GMCommand_SkillPoint;
   mGMands["slotadd"] = &ChatManager::GMCommand_SlotAdd;
@@ -439,8 +443,16 @@ bool ChatManager::HandleGMand(
     libcomp::String sentFrom =
         state->GetCharacterState()->GetEntity()->GetName();
 
+    // QoL commands any player may use (see channel config QoLCommands)
+    libcomp::String firstWord = libcomp::String(match[1]).ToLower();
+    auto conf = std::dynamic_pointer_cast<objects::ChannelConfig>(
+        mServer.lock()->GetConfig());
+    bool playerCommand =
+        conf && conf->GetQoLCommands() &&
+        (firstWord == "sort" || firstWord == "deposit" || firstWord == "qol");
+
     if (state->GetUserLevel() == 0 && "@version" != message &&
-        "@license" != message) {
+        "@license" != message && !playerCommand) {
       // Don't process the message but don't fail
       LogChatManagerInfo([&]() {
         return libcomp::String(
@@ -508,6 +520,120 @@ bool ChatManager::ExecuteGMCommand(
   });
 
   return false;
+}
+
+bool ChatManager::GMCommand_QoLHelp(
+    const std::shared_ptr<channel::ChannelClientConnection>& client,
+    const std::list<libcomp::String>& args) {
+  (void)args;
+  SendChatMessage(client, ChatType_t::CHAT_SELF,
+                  "@sort - stack and sort your inventory");
+  SendChatMessage(client, ChatType_t::CHAT_SELF,
+                  "@sort depo [N] - stack and sort depository box N (1+)");
+  SendChatMessage(client, ChatType_t::CHAT_SELF,
+                  "@deposit - store items the depository already has");
+  return SendChatMessage(client, ChatType_t::CHAT_SELF,
+                         "@deposit all - store every storable item");
+}
+
+bool ChatManager::GMCommand_Sort(
+    const std::shared_ptr<channel::ChannelClientConnection>& client,
+    const std::list<libcomp::String>& args) {
+  auto server = mServer.lock();
+  auto conf =
+      std::dynamic_pointer_cast<objects::ChannelConfig>(server->GetConfig());
+  auto state = client->GetClientState();
+  if (state->GetUserLevel() == 0 && (!conf || !conf->GetQoLCommands())) {
+    return true;
+  }
+
+  std::list<libcomp::String> argsCopy = args;
+  libcomp::String target;
+  GetStringArg(target, argsCopy);
+  target = target.ToLower();
+
+  std::shared_ptr<objects::ItemBox> box;
+  libcomp::String label = "Inventory";
+  if (target.IsEmpty() || target == "inv" || target == "inventory") {
+    box = state->GetCharacterState()->GetEntity()->GetItemBoxes(0).Get();
+  } else if (target == "depo" || target == "depository") {
+    int32_t index = 1;
+    GetIntegerArg<int32_t>(index, argsCopy);
+    auto worldData = state->GetAccountWorldData();
+    if (index >= 1 && worldData && (size_t)index <= worldData->ItemBoxesCount()) {
+      box = worldData->GetItemBoxes((size_t)(index - 1)).Get();
+      uint32_t now = (uint32_t)std::time(0);
+      if (box && index > 1 && (box->GetRentalExpiration() == 0 ||
+                               box->GetRentalExpiration() < now)) {
+        box = nullptr;
+      }
+    }
+    label = libcomp::String("Depository box %1").Arg(index);
+  } else {
+    return SendChatMessage(client, ChatType_t::CHAT_SELF,
+                           "Usage: @sort  or  @sort depo [N]");
+  }
+
+  if (!box) {
+    return SendChatMessage(client, ChatType_t::CHAT_SELF,
+                           label + " is not available.");
+  }
+
+  if (!server->GetCharacterManager()->SortItemBox(client, box)) {
+    return SendChatMessage(client, ChatType_t::CHAT_SELF,
+                           label + " can't be sorted right now.");
+  }
+
+  return SendChatMessage(client, ChatType_t::CHAT_SELF, label + " sorted.");
+}
+
+bool ChatManager::GMCommand_Deposit(
+    const std::shared_ptr<channel::ChannelClientConnection>& client,
+    const std::list<libcomp::String>& args) {
+  auto server = mServer.lock();
+  auto conf =
+      std::dynamic_pointer_cast<objects::ChannelConfig>(server->GetConfig());
+  auto state = client->GetClientState();
+  if (state->GetUserLevel() == 0 && (!conf || !conf->GetQoLCommands())) {
+    return true;
+  }
+
+  if (conf && !conf->GetQuickDepositAnywhere() && state->GetUserLevel() == 0) {
+    auto eState = state->GetEventState();
+    auto current = eState ? eState->GetCurrent() : nullptr;
+    auto menu = current ? std::dynamic_pointer_cast<objects::EventOpenMenu>(
+                              current->GetEvent())
+                        : nullptr;
+    if (!menu || menu->GetMenuType() != (int32_t)SVR_CONST.MENU_ITEM_DEPO) {
+      return SendChatMessage(client, ChatType_t::CHAT_SELF,
+                             "Open the item depository first.");
+    }
+  }
+
+  std::list<libcomp::String> argsCopy = args;
+  libcomp::String mode;
+  GetStringArg(mode, argsCopy);
+  bool all = mode.ToLower() == "all";
+
+  uint32_t stacks = 0, count = 0;
+  if (!server->GetCharacterManager()->QuickDeposit(client, all, stacks,
+                                                   count)) {
+    return SendChatMessage(client, ChatType_t::CHAT_SELF,
+                           "The item depository is not available right now.");
+  }
+
+  if (stacks == 0) {
+    return SendChatMessage(
+        client, ChatType_t::CHAT_SELF,
+        all ? "Nothing to store (or the depository is full)."
+            : "Nothing to store. Use \"@deposit all\" to store everything.");
+  }
+
+  return SendChatMessage(
+      client, ChatType_t::CHAT_SELF,
+      libcomp::String("Stored %1 item(s) from %2 inventory slot(s).")
+          .Arg(count)
+          .Arg(stacks));
 }
 
 bool ChatManager::GMCommand_AddRemoveCP(
