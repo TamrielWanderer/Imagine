@@ -117,6 +117,14 @@ Launchers download a file only if its checksum differs from the player's copy, s
 
 ### English translation of the client ###
 
-`scripts\apply_translation.bat` translates the menus and system text that the client still shows in Japanese (about 2,400 strings). It patches your client's _BinaryData_ files and keeps the originals in _BinaryData_jp_backup_. Publish the changed files with the updater to give them to other players. Details and the table format are in [contrib/translation/README.md](contrib/translation/README.md).
+`scripts\apply_translation.bat` translates the Japanese text left in the client to English. It applies every table in _contrib/translation_ and keeps the originals in _BinaryData_jp_backup_:
+
+| Table | Content |
+| --- | --- |
+| `menus_system.json` | Menus, buttons, system and shop messages, help, status effects, titles, NPC, map and demon names (about 2,400 strings) |
+| `gameplay.json` | Every item and skill name and description, barter lines, demon compendium (about 17,000 strings) |
+| `story.json` | Event, NPC and story dialogue, the Hourai club conversations, character messages (about 50,000 strings) |
+
+Publish the changed files with the updater (`publish_update.bat -Add BinaryData\Shield\<file>,...`) to give them to other players. The Aeria English client is lost, so the text was translated from the Japanese client; details, the glossary and the table format are in [contrib/translation/README.md](contrib/translation/README.md).
 
 More details and troubleshooting notes are in [scripts/README.md](scripts/README.md).
