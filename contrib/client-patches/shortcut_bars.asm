@@ -316,22 +316,36 @@ cave_evt:
     mov edx, [ecx+0x9c]
     mov esi, [eax+0x2c]
     cmp esi, edx
-    je 0x6d4402                 ; main bar: original code
+    je .ours                    ; main bar
     push eax
     mov eax, esi
     call is_bar
     pop eax
     jz .notsrc
+.ours:
+    cmp dword [eax+0x28], 1
+    jne .nolog
+    push ecx
+    push edx
+    push eax
     push dword [eax+0x40]
     push dword [eax+0x38]
-    push dword [eax+0x24]
-    push dword [eax+0x28]
+    call rec_info
+    add esp, 8
+    mov ecx, eax
+    pop eax
+    push edx
+    push ecx
+    push dword [eax+0x40]
+    push dword [eax+0x38]
     push esi
     push s_dbgevt
     call dbg
     add esp, 24
-    mov eax, [esp+8]            ; event (arg of the handler; esi was pushed)
-    jmp 0x6d4402                ; an extra bar: same handling, its own page
+    pop edx
+    pop ecx
+.nolog:
+    jmp 0x6d4402                ; same handling for every bar, its own page
 .notsrc:
     push eax
     mov eax, [eax+0x4c]
@@ -443,12 +457,16 @@ cave_keys:
     push dword [edi+B_PAGE]
     mov ecx, ebp
     call USESLOT
-    movzx eax, al
+    lea eax, [esi+8]
+    push eax
+    push dword [edi+B_PAGE]
+    call rec_info
+    add esp, 8
+    push edx
     push eax
     push dword [ebp+0xa4]
     push dword [edi+B_PAGE]
     push esi
-    push ebx
     push s_dbgkey
     call dbg
     add esp, 24
@@ -489,6 +507,36 @@ dbg:
     add esp, 4
 .out:
     popad
+    ret
+
+; rec_info(page, slot 8-23) cdecl -> eax = type | flag<<8, edx = id
+rec_info:
+    push ecx
+    push 0x101
+    call 0xad0050
+    add esp, 4
+    test eax, eax
+    jz .none
+    mov ecx, eax
+    call 0x42ae78
+    test eax, eax
+    jz .none
+    mov ecx, [esp+8]            ; page
+    shl ecx, 4
+    add ecx, [esp+12]           ; slot
+    sub ecx, 8
+    imul ecx, ecx, 0x28
+    lea ecx, [eax+ecx+0x810]
+    movzx eax, byte [ecx+0x10]
+    shl eax, 8
+    mov al, [ecx]
+    mov edx, [ecx+8]
+    pop ecx
+    ret
+.none:
+    mov eax, -1
+    xor edx, edx
+    pop ecx
     ret
 
 ; poll_macros: ebp = task
@@ -886,8 +934,8 @@ cave_act:
 s_file:     db 'ShortcutBars.txt', 0
 s_dbgfile:  db 'shortcut_bars_debug.txt', 0
 s_a:        db 'a', 0
-s_dbgkey:   db 'key bar=%d slot=%d page=%d taskpage=%d used=%d', 10, 0
-s_dbgevt:   db 'event win=%d type=%d flag=%d page=%d slot=%d', 10, 0
+s_dbgkey:   db 'key slot=%d page=%d taskpage=%d rec=%x id=%d', 10, 0
+s_dbgevt:   db 'click win=%d page=%d slot=%d rec=%x id=%d', 10, 0
 s_mfile:    db 'Macros.txt', 0
 s_mfmt:     db '%d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d', 0
 s_mhelp:
