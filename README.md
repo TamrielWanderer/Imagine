@@ -220,7 +220,7 @@ By default the servers only accept the client on the same PC. The channel server
 1. Start the servers with `scripts\start_server.bat -LanIP auto`. It detects this PC's LAN address (or pass one, e.g. `-LanIP 192.168.1.20`). The address is remembered in _local-server\lan_ip.txt_, and `-LanIP off` goes back to this PC only. _local-server\server_start.log_ shows the address in use.
 2. Open the firewall once, from an administrator PowerShell: `powershell -ExecutionPolicy Bypass -File scripts\allow_lan_firewall.ps1`. It allows TCP 10666 (lobby), 14666 (channel), 10999 (lobby web API) and 10080 (launcher updates) on Private networks, and removes Block rules Windows saved for the server programs if a firewall prompt was cancelled. Your network must be set to Private in Windows settings. `-Remove` undoes it.
 3. On each other PC, set `-ip <server address>` in the client's _ImagineClient.dat_ (keep `-port 10666`).
-4. Accounts: players create their own on the [player portal](#player-portal-accounts-and-characters), `http://<server address>:10999/`. On the server PC `scripts\create_test_account.bat` also works.
+4. Accounts: players create their own on the [player portal](#player-portal-accounts-and-characters), `http://<server address>:10999/portal/`. On the server PC `scripts\create_test_account.bat` also works.
 
 **Internet**
 
@@ -244,7 +244,7 @@ Launchers download a file only if its checksum differs from the player's copy, s
 
 ### Player portal (accounts and characters) ###
 
-The lobby's web server (TCP 10999, already opened by `allow_lan_firewall.ps1`) serves a player portal at `http://<server address>:10999/` (it redirects to _/portal/_):
+The lobby's web server (TCP 10999, already opened by `allow_lan_firewall.ps1`) serves a player portal at `http://<server address>:10999/portal/`. (The address without _/portal/_ is the game client's own login page, which is not meant for a browser.)
 
 - **Create an account** with a username, email and password; it works for the game right away.
 - **Sign in** to see the account (character tickets, CP, last login) and every character: level, experience, HP/MP, base stats, Law/Neutral/Chaos alignment with the LNC value, clan, and the demons in the COMP with their level, stats and familiarity (the partner demon is marked).

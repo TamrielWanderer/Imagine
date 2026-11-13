@@ -161,6 +161,20 @@ bool LoginHandler::HandlePage(
     uri = uri.Mid(1);
   }
 
+  // A folder of the web root (like /portal/) serves its index.html.
+  if (!uri.IsEmpty() && "/" == uri.Right(1)) {
+    uri += "index.html";
+  } else if (uri == "portal" || uri == "accountmanager") {
+    mg_printf(pConnection,
+              "HTTP/1.1 302 Found\r\n"
+              "Location: /%s/\r\n"
+              "Content-Length: 0\r\n"
+              "Connection: close\r\n"
+              "\r\n",
+              uri.C());
+    return true;
+  }
+
   /// Load the Squirrel handler script once per thread.
   if (!mThreadHandler.DidInit()) {
     // Attempt to load the script file.
@@ -280,6 +294,16 @@ bool LoginHandler::HandlePage(
               "\r\n",
               (unsigned int)pageData.size());
     mg_write(pConnection, &pageData[0], pageData.size());
+  } else if (".js" == uri.Right(strlen(".js"))) {
+    mg_printf(pConnection,
+              "HTTP/1.1 200 OK\r\n"
+              "Content-Type: application/javascript; charset=UTF-8\r\n"
+              "Content-Length: %u\r\n"
+              "Connection: close\r\n"
+              "\r\n",
+              (unsigned int)(pageData.size() - 1));
+    // LoadVfsFile adds a null terminator; a script must not end with it
+    mg_write(pConnection, &pageData[0], pageData.size() - 1);
   } else if (".css" == uri.Right(strlen(".css"))) {
     mg_printf(pConnection,
               "HTTP/1.1 200 OK\r\n"
