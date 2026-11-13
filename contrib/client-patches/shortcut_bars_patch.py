@@ -88,6 +88,8 @@ def main():
     ap.add_argument('--revert', action='store_true')
     ap.add_argument('--check', action='store_true')
     a = ap.parse_args()
+    # a path read from a file saved with a BOM (seen through cmd.exe)
+    a.exe = a.exe.lstrip('\ufeff').replace('\u00b4\u2557\u2510', '')
 
     data = bytearray(open(a.exe, 'rb').read())
     if len(data) != EXPECTED_SIZE:
