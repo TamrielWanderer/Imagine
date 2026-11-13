@@ -18,6 +18,7 @@ This is the `experimental` branch. It holds changes that differ from the origina
 | Partner demon | Faster, smarter client AI (skill order, learned resistances, aggressive mode) | [Client partner demon AI](#list-of-changes) |
 | Hotbars | Up to 6 extra shortcut bars, a key for every slot, macros | [Extra shortcut bars](#list-of-changes) |
 | Settings | Window editor for keys, bars and macros, shipped to players as _KeyConfigTool.exe_ | [Editor for keys, bars and macros](#list-of-changes) |
+| Display | Fullscreen is always borderless fullscreen at the desktop resolution | [Borderless fullscreen](#list-of-changes) |
 | Combat | Stagger rework: affinity-based stagger, recovery window, Smirk | [Stagger rework](#list-of-changes) |
 | Inventory | `@sort`, `@deposit`, bigger item stacks | [Inventory QoL](#list-of-changes) |
 | Language | The client is translated to English: menus, items, skills, compendium, story and NPC dialogue | [English translation](#english-translation-of-the-client) |
@@ -80,6 +81,18 @@ scripts\shortcut_bars_patch.bat "<client folder>" --revert   # remove it
 Close the game before saving, because the game rewrites `KeyConfigOption.txt` and `ShortcutBars.txt` when it exits. The first save keeps the old files as `.bak`. These three files are personal settings, so they are not published with the updater.
 
 To give the editor to every player, run `scripts\build_key_config_tool.bat` once on the server PC (it needs Python there, players don't). It builds the stand-alone `KeyConfigTool.exe` with PyInstaller, copies it into the client folder and publishes it with the updater, so every launcher downloads it next to `ImagineClient.exe`. Players double-click `KeyConfigTool.exe` in their game folder; it edits the files of the folder it is in. Run the script again after the editor changes (`-NoPublish` only builds and copies). Notes: `docs/client-shortcut-bars-notes.md`; the code is `shortcut_bars.asm` (rebuild with `build_shortcut_bars.py`, needs nasm).
+
+**Borderless fullscreen** (`contrib/client-patches/borderless_fullscreen_patch.py`)
+
+With the game's fullscreen option on, the client no longer switches the monitor into exclusive fullscreen. It opens a borderless window that covers the whole primary monitor at the desktop resolution and renders in windowed mode, so Alt-Tab is instant, the screen doesn't flicker or change resolution, and a second monitor, overlays and screenshots keep working. In fullscreen the game always uses the desktop resolution (`ResolutionX`/`ResolutionY` only apply to windowed mode). Windowed mode is unchanged.
+
+```
+scripts\borderless_fullscreen_patch.bat                      # apply to the client folder start_server.ps1 remembers
+scripts\borderless_fullscreen_patch.bat "<client folder>" --check    # show what is applied
+scripts\borderless_fullscreen_patch.bat "<client folder>" --revert   # remove it
+```
+
+It works together with the other client patches (any order) and updates the hash in `comp_client.dll`; publish both with `scripts\publish_update.bat -Add ImagineClient.exe`.
 
 **Stagger rework** (channel server, `StaggerRework` in `channelconfig.xml`)
 
