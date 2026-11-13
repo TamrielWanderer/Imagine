@@ -322,6 +322,15 @@ cave_evt:
     call is_bar
     pop eax
     jz .notsrc
+    push dword [eax+0x40]
+    push dword [eax+0x38]
+    push dword [eax+0x24]
+    push dword [eax+0x28]
+    push esi
+    push s_dbgevt
+    call dbg
+    add esp, 24
+    mov eax, [esp+8]            ; event (arg of the handler; esi was pushed)
     jmp 0x6d4402                ; an extra bar: same handling, its own page
 .notsrc:
     push eax
@@ -434,6 +443,15 @@ cave_keys:
     push dword [edi+B_PAGE]
     mov ecx, ebp
     call USESLOT
+    movzx eax, al
+    push eax
+    push dword [ebp+0xa4]
+    push dword [edi+B_PAGE]
+    push esi
+    push ebx
+    push s_dbgkey
+    call dbg
+    add esp, 24
     jmp .save
 .nexts:
     inc esi
@@ -444,6 +462,32 @@ cave_keys:
 .save:
     call poll_macros
     call maybe_save
+    popad
+    ret
+
+; dbg(fmt, a, b, c, d): append a line to shortcut_bars_debug.txt (cdecl)
+dbg:
+    pushad
+    push s_a
+    push s_dbgfile
+    call [I_FOPEN]
+    add esp, 8
+    test eax, eax
+    jz .out
+    mov esi, eax
+    push dword [esp+0x20+0x18]
+    push dword [esp+0x24+0x14]
+    push dword [esp+0x28+0x10]
+    push dword [esp+0x2c+0x0c]
+    push dword [esp+0x30+0x08]
+    push dword [esp+0x34+0x04]
+    push esi
+    call [I_FPRINTF]
+    add esp, 28
+    push esi
+    call [I_FCLOSE]
+    add esp, 4
+.out:
     popad
     ret
 
@@ -840,6 +884,10 @@ cave_act:
 
 ; ---- constant data ---------------------------------------------------------
 s_file:     db 'ShortcutBars.txt', 0
+s_dbgfile:  db 'shortcut_bars_debug.txt', 0
+s_a:        db 'a', 0
+s_dbgkey:   db 'key bar=%d slot=%d page=%d taskpage=%d used=%d', 10, 0
+s_dbgevt:   db 'event win=%d type=%d flag=%d page=%d slot=%d', 10, 0
 s_mfile:    db 'Macros.txt', 0
 s_mfmt:     db '%d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d', 0
 s_mhelp:
