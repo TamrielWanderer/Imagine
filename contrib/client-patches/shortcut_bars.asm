@@ -361,6 +361,37 @@ cave_evt:
     ret 4
 
 ; ===========================================================================
+; Hooks H7: the UI event dispatcher (0x6a3070) only sends events to the
+; shortcut task when the window is d81e70(0x159), the first (main) bar.
+; These return the compared window itself when it is an extra bar.
+; ===========================================================================
+FINDTYPE    equ 0xd81e70
+cave_find_ebp:
+    push SHORTCUT_WINDOW
+    call FINDTYPE
+    add esp, 4
+    push eax
+    mov eax, ebp
+    call is_bar
+    pop eax
+    jz .r
+    mov eax, ebp
+.r:
+    ret
+cave_find_edi:
+    push SHORTCUT_WINDOW
+    call FINDTYPE
+    add esp, 4
+    push eax
+    mov eax, edi
+    call is_bar
+    pop eax
+    jz .r
+    mov eax, edi
+.r:
+    ret
+
+; ===========================================================================
 ; Hook H5: key poll (0x6d3d64), ecx = task
 ; ===========================================================================
 cave_keys:

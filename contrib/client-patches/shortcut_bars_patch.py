@@ -39,6 +39,14 @@ def rel(op, at, target, total):
     return b + b'\x90' * (total - len(b))
 
 
+def is_old_hook(va, cur, new):
+    """A call/jmp written by an older build of this patch (into the code area)."""
+    if len(cur) < 5 or cur[0] != new[0] or cur[0] not in (0xe8, 0xe9):
+        return False
+    target = va + 5 + struct.unpack('<i', cur[1:5])[0]
+    return CODE_VA <= target < CODE_VA + 0x10000 and cur[5:] == new[5:]
+
+
 PATCHES = [
     (CODE_VA, b'\xcc' * len(CODE), CODE, 'code (in unused .text padding)'),
     (0x6ce563, bytes.fromhex('e82155d4ff'),
@@ -53,6 +61,16 @@ PATCHES = [
     (0x6d43f5, bytes.fromhex('8b919c0000008b702c3bf2753a'),
      rel(b'\xe9', 0x6d43f5, SYMBOLS['cave_evt'], 13),
      'clicks and drops on the extra bars'),
+    (0x6a3537, bytes.fromhex('6859010000e82fe96d0083c404'),
+     rel(b'\xe8', 0x6a3537, SYMBOLS['cave_find_ebp'], 13),
+     'send clicks on the extra bars to the shortcut task'),
+    (0x6a74ba, bytes.fromhex('6859010000e8aca96d0083c404'),
+     rel(b'\xe8', 0x6a74ba, SYMBOLS['cave_find_ebp'], 13),
+     'send drags from the extra bars to the shortcut task'),
+    (0x6a74cb, bytes.fromhex('68590100'
+                             '00e89ba96d0083c404'),
+     rel(b'\xe8', 0x6a74cb, SYMBOLS['cave_find_edi'], 13),
+     'send drops onto the extra bars to the shortcut task'),
     (0x6d3d64, bytes.fromhex('e82cf5d4ff'),
      rel(b'\xe8', 0x6d3d64, SYMBOLS['cave_keys'], 5),
      'keys ShortCutBarN_SS'),
@@ -82,6 +100,9 @@ def main():
         cur = bytes(data[off:off + len(orig)])
         if va == CODE_VA and cur not in (orig, new):
             # an older build of this code: it is replaced
+            state.append((off, False, orig, new, desc + ' (older build, replaced)'))
+            continue
+        if cur not in (orig, new) and is_old_hook(va, cur, new):
             state.append((off, False, orig, new, desc + ' (older build, replaced)'))
             continue
         if cur not in (orig, new):

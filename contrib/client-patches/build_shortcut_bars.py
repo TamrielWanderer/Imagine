@@ -9,7 +9,7 @@ import tempfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SYMBOLS = ['load_macros', 'poll_macros', 'cave_init', 'cave_ss_entry', 'cave_ss_exit', 'cave_evt',
-           'cave_keys', 'cave_act']
+           'cave_keys', 'cave_act', 'cave_find_ebp', 'cave_find_edi']
 
 
 def main():
