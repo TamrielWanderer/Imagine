@@ -51,7 +51,15 @@ python shortcut_bars_patch.py "<client folder>\ImagineClient.exe" --check    # s
 python shortcut_bars_patch.py "<client folder>\ImagineClient.exe" --revert   # remove it
 ```
 
-Like the partner AI patch it updates the hash in `comp_client.dll`; publish both files with the updater. Notes: `docs/client-shortcut-bars-notes.md`; the code is `shortcut_bars.asm` (rebuild with `build_shortcut_bars.py`, needs nasm).
+Like the partner AI patch it updates the hash in `comp_client.dll`; publish both files with the updater.
+
+**Editor for keys, bars and macros.** The game has no menu for these, so `scripts\key_config_tool.bat` opens a small window (Python 3 with tkinter, part of the python.org installer) with three tabs:
+
+- **Keys:** every action in `KeyConfigOption.txt`, grouped (main bar, extra bars, macros, demon bar, movement, windows...). Double-click an action and press the key combination, or pick it from a list. It warns when the key is already used and can move it.
+- **Extra bars:** add or remove bars and set their page, layout and position.
+- **Macros:** up to 10 macros of up to 8 steps (page and slot), one step per press or all at once, and their keys.
+
+Close the game before saving, because the game rewrites `KeyConfigOption.txt` and `ShortcutBars.txt` when it exits. The first save keeps the old files as `.bak`. These three files are personal settings, so they are not published with the updater. Notes: `docs/client-shortcut-bars-notes.md`; the code is `shortcut_bars.asm` (rebuild with `build_shortcut_bars.py`, needs nasm).
 
 **Stagger rework** (channel server, `StaggerRework` in `channelconfig.xml`)
 
