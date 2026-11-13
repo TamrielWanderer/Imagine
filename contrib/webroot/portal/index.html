@@ -1,0 +1,268 @@
+<!doctype html>
+<!--
+Player portal: create an account, sign in, see your characters and demons.
+Served by the lobby's web server (WebRoot = contrib/webroot), so it talks to
+the API on the same address. Uses jsSHA from ../accountmanager for the
+challenge login (crypto.subtle is not available on plain-http LAN pages).
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Shin Megami Tensei IMAGINE - Player portal</title>
+<style>
+  :root {
+    --bg: #0d0e12; --panel: #161821; --panel2: #1d2030; --line: #2c3045;
+    --text: #e6e8ef; --muted: #9aa0b4; --accent: #c8102e; --accent2: #e8b04a;
+    --law: #4a90e2; --neutral: #9aa0b4; --chaos: #d0453a;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 15px/1.5 "Segoe UI", system-ui, sans-serif; }
+  header { padding: 22px 24px 14px; border-bottom: 1px solid var(--line);
+           display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap; }
+  header h1 { margin: 0; font-size: 22px; letter-spacing: .5px; }
+  header h1 span { color: var(--accent); }
+  header .who { margin-left: auto; color: var(--muted); }
+  main { max-width: 1040px; margin: 0 auto; padding: 24px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+          padding: 20px; margin-bottom: 18px; }
+  .forms { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 18px; }
+  h2 { margin: 0 0 12px; font-size: 18px; }
+  h3 { margin: 0; font-size: 18px; }
+  label { display: block; margin: 10px 0 4px; color: var(--muted); font-size: 13px; }
+  input { width: 100%; padding: 9px 11px; border-radius: 6px; border: 1px solid var(--line);
+          background: var(--panel2); color: var(--text); font-size: 15px; }
+  input:focus { outline: 2px solid var(--accent); border-color: transparent; }
+  button { margin-top: 16px; padding: 9px 18px; border: 0; border-radius: 6px; cursor: pointer;
+           background: var(--accent); color: #fff; font-size: 15px; font-weight: 600; }
+  button.ghost { background: transparent; border: 1px solid var(--line); color: var(--text);
+                 margin: 0; padding: 6px 12px; font-weight: 400; }
+  button:disabled { opacity: .5; cursor: default; }
+  .hint { color: var(--muted); font-size: 13px; margin-top: 6px; }
+  .msg { margin-top: 12px; padding: 9px 12px; border-radius: 6px; display: none; }
+  .msg.ok { display: block; background: #12321f; color: #8fe0a8; }
+  .msg.err { display: block; background: #3a1418; color: #f3a0a6; }
+  .summary { display: flex; flex-wrap: wrap; gap: 8px 28px; color: var(--muted); }
+  .summary b { color: var(--text); font-weight: 600; }
+  .char-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+  .lvl { font-size: 13px; color: var(--muted); }
+  .badge { padding: 2px 10px; border-radius: 99px; font-size: 12px; font-weight: 700;
+           letter-spacing: .5px; text-transform: uppercase; }
+  .badge.Law { background: #15263f; color: var(--law); }
+  .badge.Neutral { background: #24262f; color: #c9cdd8; }
+  .badge.Chaos { background: #3a1716; color: var(--chaos); }
+  .grid2 { display: grid; grid-template-columns: minmax(240px, 1fr) 2fr; gap: 22px; }
+  @media (max-width: 760px) { .grid2 { grid-template-columns: 1fr; } }
+  .lnc { margin: 4px 0 14px; }
+  .lnc .bar { position: relative; height: 8px; border-radius: 4px;
+              background: linear-gradient(90deg, var(--law), #5d6273 50%, var(--chaos)); }
+  .lnc .pin { position: absolute; top: -4px; width: 4px; height: 16px; background: #fff;
+              border-radius: 2px; transform: translateX(-2px); }
+  .lnc .ends { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); }
+  .stats { display: grid; grid-template-columns: 1fr auto; gap: 3px 12px; font-size: 14px; }
+  .stats div:nth-child(odd) { color: var(--muted); }
+  .meter { height: 6px; background: var(--panel2); border-radius: 3px; margin: 2px 0 8px; overflow: hidden; }
+  .meter i { display: block; height: 100%; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th { text-align: left; color: var(--muted); font-weight: 600; font-size: 12px;
+       text-transform: uppercase; letter-spacing: .5px; padding: 6px 8px; border-bottom: 1px solid var(--line); }
+  td { padding: 6px 8px; border-bottom: 1px solid #22253300; }
+  tr:nth-child(even) td { background: #191b26; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .active-tag { color: var(--accent2); font-size: 12px; margin-left: 6px; }
+  .empty { color: var(--muted); }
+  .hidden { display: none; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Shin Megami Tensei <span>IMAGINE</span></h1>
+  <div class="who hidden" id="who"><span id="whoName"></span>
+    <button class="ghost" id="refresh">Refresh</button>
+    <button class="ghost" id="logout">Sign out</button></div>
+</header>
+<main>
+  <section id="authView" class="forms">
+    <form class="card" id="registerForm" autocomplete="off">
+      <h2>Create an account</h2>
+      <label for="regUser">Username</label>
+      <input id="regUser" required pattern="[A-Za-z][A-Za-z0-9]{3,31}" maxlength="32">
+      <div class="hint">4-32 letters and numbers, starting with a letter.</div>
+      <label for="regEmail">Email</label>
+      <input id="regEmail" type="email" required>
+      <label for="regPass">Password</label>
+      <input id="regPass" type="password" required minlength="6" maxlength="16">
+      <div class="hint">6-16 characters.</div>
+      <label for="regPass2">Password again</label>
+      <input id="regPass2" type="password" required minlength="6" maxlength="16">
+      <button type="submit">Create account</button>
+      <div class="msg" id="regMsg"></div>
+    </form>
+    <form class="card" id="loginForm">
+      <h2>Sign in</h2>
+      <label for="logUser">Username</label>
+      <input id="logUser" required autocomplete="username">
+      <label for="logPass">Password</label>
+      <input id="logPass" type="password" required autocomplete="current-password">
+      <button type="submit">Sign in</button>
+      <div class="msg" id="logMsg"></div>
+      <p class="hint">Use the same account to log in to the game.</p>
+    </form>
+  </section>
+
+  <section id="accountView" class="hidden">
+    <div class="card">
+      <h2>Account</h2>
+      <div class="summary" id="summary"></div>
+    </div>
+    <div id="characters"></div>
+  </section>
+</main>
+
+<script src="../accountmanager/jsSHA-2.3.1/src/sha512.js"></script>
+<script>
+"use strict";
+const SERVER = location.protocol.startsWith("http") ? location.origin : "http://127.0.0.1:10999";
+const $ = (id) => document.getElementById(id);
+const sha512 = (text) => { const s = new jsSHA("SHA-512", "TEXT"); s.update(text); return s.getHash("HEX"); };
+const esc = (s) => String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+
+let session = null;   // { username, hash, challenge }
+let queue = Promise.resolve();
+
+async function post(path, body) {
+  const r = await fetch(SERVER + "/api" + path, {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body)
+  });
+  if (r.status === 401) throw new Error("unauthorized");
+  if (!r.ok) throw new Error("HTTP " + r.status);
+  return r.json();
+}
+
+// Authenticated requests chain the challenge: one at a time.
+function api(path, extra = {}) {
+  const run = async () => {
+    const res = await post(path, Object.assign({ session_username: session.username,
+                                                 challenge: session.challenge }, extra));
+    if (res.challenge) session.challenge = sha512(session.hash + res.challenge);
+    return res;
+  };
+  const p = queue.then(run, run);
+  queue = p.catch(() => {});
+  return p;
+}
+
+function show(el, text, ok) { el.textContent = text; el.className = "msg " + (ok ? "ok" : "err"); }
+
+$("registerForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const m = $("regMsg");
+  if ($("regPass").value !== $("regPass2").value) return show(m, "The passwords don't match.", false);
+  const btn = e.submitter; if (btn) btn.disabled = true;
+  try {
+    const res = await post("/account/register", { username: $("regUser").value.trim().toLowerCase(),
+      email: $("regEmail").value.trim(), password: $("regPass").value });
+    const errors = { "Success": null, "Bad username": "That username isn't allowed (4-32 letters and numbers, starting with a letter).",
+      "Bad password": "That password isn't allowed (6-16 characters).", "Bad email": "That email address isn't valid.",
+      "Account exists": "That username or email is already registered." };
+    if (res.error === "Success") {
+      show(m, "Account created. You can sign in here and in the game now.", true);
+      $("logUser").value = $("regUser").value.trim().toLowerCase();
+      e.target.reset();
+    } else show(m, errors[res.error] || res.error || "The account could not be created.", false);
+  } catch (err) { show(m, "The server could not be reached (" + err.message + ").", false); }
+  finally { if (btn) btn.disabled = false; }
+});
+
+$("loginForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const m = $("logMsg"); m.className = "msg";
+  const username = $("logUser").value.trim().toLowerCase(), password = $("logPass").value;
+  try {
+    const c = await post("/auth/get_challenge", { username });
+    if (!c.salt || !c.challenge) throw new Error("bad answer");
+    const hash = sha512(password + c.salt);
+    session = { username, hash, challenge: sha512(hash + c.challenge) };
+    await load();
+    $("logPass").value = "";
+  } catch (err) {
+    session = null;
+    show(m, err.message === "unauthorized" ? "Wrong username or password." : "Sign-in failed (" + err.message + ").", false);
+  }
+});
+
+$("logout").addEventListener("click", () => {
+  session = null;
+  $("accountView").classList.add("hidden"); $("who").classList.add("hidden");
+  $("authView").classList.remove("hidden");
+});
+$("refresh").addEventListener("click", () => load().catch(err => alert("Refresh failed: " + err.message)));
+
+async function load() {
+  const details = await api("/account/get_details");
+  const chars = await api("/account/get_characters");
+  $("authView").classList.add("hidden");
+  $("accountView").classList.remove("hidden");
+  $("who").classList.remove("hidden");
+  $("whoName").textContent = details.disp_name || details.username;
+  const last = details.last_login ? new Date(details.last_login * 1000).toLocaleString() : "never";
+  $("summary").innerHTML = [
+    ["Username", details.username], ["Email", details.email], ["Characters", details.character_count],
+    ["Character tickets", details.ticket_count], ["CP", details.cp], ["Last login", last]
+  ].map(([k, v]) => `<div>${esc(k)}: <b>${esc(v)}</b></div>`).join("");
+  renderCharacters(chars.characters || []);
+}
+
+function meter(cur, max, color) {
+  const pct = max > 0 ? Math.max(0, Math.min(100, cur * 100 / max)) : 0;
+  return `<div class="meter"><i style="width:${pct}%;background:${color}"></i></div>`;
+}
+
+function renderCharacters(list) {
+  const box = $("characters");
+  if (!list.length) {
+    box.innerHTML = `<div class="card empty">No characters yet. Create one in the game.</div>`;
+    return;
+  }
+  box.innerHTML = list.map(c => {
+    const lncPos = (Math.max(-10000, Math.min(10000, c.lnc)) + 10000) / 200;
+    const demons = (c.demons || []).slice().sort((a, b) => (b.active - a.active) || (b.level - a.level));
+    const rows = demons.map(d => `<tr><td>${esc(d.name)}${d.active ? '<span class="active-tag">&#9733; partner</span>' : ""}</td>
+        <td class="num">${d.level ?? ""}</td><td class="num">${d.max_hp ?? ""}</td><td class="num">${d.max_mp ?? ""}</td>
+        <td class="num">${d.str ?? ""}</td><td class="num">${d.magic ?? ""}</td><td class="num">${d.vit ?? ""}</td>
+        <td class="num">${d.int ?? ""}</td><td class="num">${d.speed ?? ""}</td><td class="num">${d.luck ?? ""}</td>
+        <td class="num">${(d.familiarity ?? 0).toLocaleString()}</td></tr>`).join("");
+    return `<div class="card">
+      <div class="char-head"><h3>${esc(c.name)}</h3>
+        <span class="lvl">Level ${c.level ?? "?"} &middot; ${esc(c.gender)} &middot; ${esc(c.world)}${c.clan ? " &middot; Clan " + esc(c.clan) : ""}</span>
+        <span class="badge ${esc(c.alignment)}">${esc(c.alignment)}</span>
+        ${c.deleting ? '<span class="badge Chaos">being deleted</span>' : ""}</div>
+      <div class="grid2">
+        <div>
+          <div class="lnc"><div class="bar"><div class="pin" style="left:${lncPos}%"></div></div>
+            <div class="ends"><span>Law</span><span>LNC ${c.lnc}</span><span>Chaos</span></div></div>
+          <div class="stats">
+            <div>HP</div><div>${c.hp} / ${c.max_hp}</div></div>${meter(c.hp, c.max_hp, "#3fbf6f")}
+          <div class="stats"><div>MP</div><div>${c.mp} / ${c.max_mp}</div></div>${meter(c.mp, c.max_mp, "#4a90e2")}
+          <div class="stats">
+            <div>Strength</div><div>${c.str}</div><div>Magic</div><div>${c.magic}</div>
+            <div>Vitality</div><div>${c.vit}</div><div>Intelligence</div><div>${c.int}</div>
+            <div>Speed</div><div>${c.speed}</div><div>Luck</div><div>${c.luck}</div>
+            <div>Experience</div><div>${Number(c.xp || 0).toLocaleString()}</div>
+          </div>
+        </div>
+        <div>
+          <h2 style="font-size:15px">Demons in the COMP (${demons.length})</h2>
+          ${demons.length ? `<div style="overflow-x:auto"><table><thead><tr><th>Demon</th><th class="num">Lv</th>
+            <th class="num">HP</th><th class="num">MP</th><th class="num">St</th><th class="num">Ma</th>
+            <th class="num">Vi</th><th class="num">In</th><th class="num">Sp</th><th class="num">Lu</th>
+            <th class="num">Familiarity</th></tr></thead><tbody>${rows}</tbody></table></div>`
+            : `<p class="empty">No demons.</p>`}
+        </div>
+      </div></div>`;
+  }).join("");
+}
+</script>
+</body>
+</html>

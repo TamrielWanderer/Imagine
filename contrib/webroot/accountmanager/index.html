@@ -56,7 +56,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
     <script type="text/javascript" src="jsSHA-2.3.1/src/sha512.js"></script>
     <script>
 
-    var SERVER_URL = "http://127.0.0.1:10999";
+    var SERVER_URL = location.protocol.indexOf("http") === 0 ? location.origin : "http://127.0.0.1:10999";
 
     var api;
     var activePage;

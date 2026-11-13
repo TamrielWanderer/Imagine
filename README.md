@@ -11,6 +11,22 @@ The aim of the project is to revive an MMO that has been shutdown (SMT: IMAGINE)
 
 This is the `experimental` branch. It holds changes that differ from the original release of the game. Use `main` if you want the original behavior.
 
+### Overview ###
+
+| Area | What changed | Where |
+| --- | --- | --- |
+| Partner demon | Faster, smarter client AI (skill order, learned resistances, aggressive mode) | [Client partner demon AI](#list-of-changes) |
+| Hotbars | Up to 6 extra shortcut bars, a key for every slot, macros | [Extra shortcut bars](#list-of-changes) |
+| Settings | Window editor for keys, bars and macros, shipped to players as _KeyConfigTool.exe_ | [Editor for keys, bars and macros](#list-of-changes) |
+| Combat | Stagger rework: affinity-based stagger, recovery window, Smirk | [Stagger rework](#list-of-changes) |
+| Inventory | `@sort`, `@deposit`, bigger item stacks | [Inventory QoL](#list-of-changes) |
+| Language | The client is translated to English: menus, items, skills, compendium, story and NPC dialogue | [English translation](#english-translation-of-the-client) |
+| Accounts | Player portal web page: create an account, see characters, stats, alignment and demons | [Player portal](#player-portal-accounts-and-characters) |
+| Hosting | Windows build and server scripts, LAN/Internet play, client updates through the launcher | [Running a local server](#running-a-local-server-on-windows) |
+| Admin | GM command reference | [docs/GM_commands.txt](docs/GM_commands.txt) |
+
+**Publishing to players.** Everything a player needs on their PC goes through the launcher ([Client updates](#client-updates-through-the-launcher)): the patched _ImagineClient.exe_ and _comp_client.dll_ (client patches), _KeyConfigTool.exe_, the translated _BinaryData_ files and _BinaryData/Shield/ItemData.sbin_ (stack sizes). Personal settings (_KeyConfigOption.txt_, _ShortcutBars.txt_, _Macros.txt_, _InsideOption.txt_) are never published.
+
 ### List of changes ###
 
 **Client partner demon AI** (`contrib/client-patches/partner_ai_patch.py`)
@@ -45,13 +61,15 @@ A second client patch (it works with or without the partner AI patch):
 
 The bars are set in `ShortcutBars.txt` in the client folder: one line per bar, `page layout x y` (page 1-10, layout 0-3 like `ShortcutWindowType`, position or `-1 -1` for above the main bar). The game writes the file with two bars (pages 2 and 3) and an explanation the first time it starts, and saves pages and positions there when a bar moves. `Macros.txt` is written the same way with an explanation and an example.
 
+Close the game, then:
+
 ```
-python shortcut_bars_patch.py "<client folder>\ImagineClient.exe"            # apply
-python shortcut_bars_patch.py "<client folder>\ImagineClient.exe" --check    # show what is applied
-python shortcut_bars_patch.py "<client folder>\ImagineClient.exe" --revert   # remove it
+scripts\shortcut_bars_patch.bat                      # apply to the client folder start_server.ps1 remembers
+scripts\shortcut_bars_patch.bat "<client folder>" --check    # show what is applied
+scripts\shortcut_bars_patch.bat "<client folder>" --revert   # remove it
 ```
 
-Like the partner AI patch it updates the hash in `comp_client.dll`; publish both files with the updater.
+(Or `py -3 contrib\client-patches\shortcut_bars_patch.py "<client folder>\ImagineClient.exe"`.) Running it again on a client patched with an older build upgrades it. Like the partner AI patch it updates the hash in `comp_client.dll`; publish both with `scripts\publish_update.bat -Add ImagineClient.exe` (the dll is added automatically). The key of `ShortCutBarN_SS` is the same slot position as the main bar's `ShortCutPlayerSS` key.
 
 **Editor for keys, bars and macros.** The game has no menu for these, so `scripts\key_config_tool.bat` opens a small window (Python 3 with tkinter, part of the python.org installer) with three tabs:
 
@@ -202,7 +220,7 @@ By default the servers only accept the client on the same PC. The channel server
 1. Start the servers with `scripts\start_server.bat -LanIP auto`. It detects this PC's LAN address (or pass one, e.g. `-LanIP 192.168.1.20`). The address is remembered in _local-server\lan_ip.txt_, and `-LanIP off` goes back to this PC only. _local-server\server_start.log_ shows the address in use.
 2. Open the firewall once, from an administrator PowerShell: `powershell -ExecutionPolicy Bypass -File scripts\allow_lan_firewall.ps1`. It allows TCP 10666 (lobby), 14666 (channel), 10999 (lobby web API) and 10080 (launcher updates) on Private networks, and removes Block rules Windows saved for the server programs if a firewall prompt was cancelled. Your network must be set to Private in Windows settings. `-Remove` undoes it.
 3. On each other PC, set `-ip <server address>` in the client's _ImagineClient.dat_ (keep `-port 10666`).
-4. Accounts: run `scripts\create_test_account.bat` on the server PC, or register through `http://<server address>:10999/api/account/register`.
+4. Accounts: players create their own on the [player portal](#player-portal-accounts-and-characters), `http://<server address>:10999/`. On the server PC `scripts\create_test_account.bat` also works.
 
 **Internet**
 
@@ -224,8 +242,25 @@ The game launcher (_ImagineUpdate.exe_) downloads changed client files from an u
 
 Launchers download a file only if its checksum differs from the player's copy, so publishing a whole folder costs nothing for files players already have. Files you don't publish are never touched. Pointing a launcher at your server replaces the official update server, so the official ReIMAGINE updates stop reaching that client. For a public release, any web server can host the _local-server\update\files_ folder instead.
 
+### Player portal (accounts and characters) ###
+
+The lobby's web server (TCP 10999, already opened by `allow_lan_firewall.ps1`) serves a player portal at `http://<server address>:10999/` (it redirects to _/portal/_):
+
+- **Create an account** with a username, email and password; it works for the game right away.
+- **Sign in** to see the account (character tickets, CP, last login) and every character: level, experience, HP/MP, base stats, Law/Neutral/Chaos alignment with the LNC value, clan, and the demons in the COMP with their level, stats and familiarity (the partner demon is marked).
+
+The page is _contrib/webroot/portal/index.html_. Its data comes from the new `/api/account/get_characters` call of the lobby (signed in with the same challenge login as the old account manager, so passwords are never sent after registration). The old admin account manager is still at _/accountmanager/_ and now also works from other PCs.
+
 ### English translation of the client ###
 
-`scripts\apply_translation.bat` translates the menus and system text that the client still shows in Japanese (about 2,400 strings). It patches your client's _BinaryData_ files and keeps the originals in _BinaryData_jp_backup_. Publish the changed files with the updater to give them to other players. Details and the table format are in [contrib/translation/README.md](contrib/translation/README.md).
+`scripts\apply_translation.bat` translates the Japanese text left in the client to English. It applies every table in _contrib/translation_ and keeps the originals in _BinaryData_jp_backup_:
+
+| Table | Content |
+| --- | --- |
+| `menus_system.json` | Menus, buttons, system and shop messages, help, status effects, titles, NPC, map and demon names (about 2,400 strings) |
+| `gameplay.json` | Every item and skill name and description, barter lines, demon compendium (about 17,000 strings) |
+| `story.json` | Event, NPC and story dialogue, the Hourai club conversations, character messages (about 50,000 strings) |
+
+Publish the changed files with the updater (`publish_update.bat -Add BinaryData\Shield\<file>,...`) to give them to other players. The Aeria English client is lost, so the text was translated from the Japanese client; details, the glossary and the table format are in [contrib/translation/README.md](contrib/translation/README.md).
 
 More details and troubleshooting notes are in [scripts/README.md](scripts/README.md).

@@ -47,6 +47,13 @@
 // object Includes
 #include <AccountWorldData.h>
 #include <Character.h>
+#include <RegisteredWorld.h>
+#include <MiNPCBasicData.h>
+#include <MiDevilData.h>
+#include <EntityStats.h>
+#include <DemonBox.h>
+#include <Demon.h>
+#include <Clan.h>
 #include <CharacterLogin.h>
 #include <CharacterProgress.h>
 #include <MiShopProductData.h>
@@ -86,6 +93,7 @@ ApiHandler::ApiHandler(const std::shared_ptr<objects::LobbyConfig>& config,
   mParsers["/account/change_password"] = &ApiHandler::Account_ChangePassword;
   mParsers["/account/client_login"] = &ApiHandler::Account_ClientLogin;
   mParsers["/account/register"] = &ApiHandler::Account_Register;
+  mParsers["/account/get_characters"] = &ApiHandler::Account_GetCharacters;
   mParsers["/admin/get_accounts"] = &ApiHandler::Admin_GetAccounts;
   mParsers["/admin/get_account"] = &ApiHandler::Admin_GetAccount;
   mParsers["/admin/delete_account"] = &ApiHandler::Admin_DeleteAccount;
@@ -107,6 +115,9 @@ ApiHandler::ApiHandler(const std::shared_ptr<objects::LobbyConfig>& config,
 
   mDefinitionManager->LoadData<objects::MiShopProductData>(
       server->GetDataStore());
+
+  // Demon names for the player portal's character page
+  mDefinitionManager->LoadData<objects::MiDevilData>(server->GetDataStore());
 
   auto serverDataManager = new libhack::ServerDataManager;
   bool scriptsLoaded = false;
@@ -267,6 +278,102 @@ bool ApiHandler::Account_GetDetails(
   }
 
   response["character_count"] = count;
+
+  return true;
+}
+
+bool ApiHandler::Account_GetCharacters(
+    const JsonBox::Object& request, JsonBox::Object& response,
+    const std::shared_ptr<ApiSession>& session) {
+  (void)request;
+
+  auto account =
+      objects::Account::LoadAccountByUsername(GetDatabase(), session->username);
+  if (!account) {
+    return false;
+  }
+
+  auto statsJson = [](const std::shared_ptr<objects::EntityStats>& stats,
+                      JsonBox::Object& obj) {
+    if (!stats) {
+      return;
+    }
+    obj["level"] = (int)stats->GetLevel();
+    obj["xp"] = (double)stats->GetXP();
+    obj["hp"] = (int)stats->GetHP();
+    obj["mp"] = (int)stats->GetMP();
+    obj["max_hp"] = (int)stats->GetMaxHP();
+    obj["max_mp"] = (int)stats->GetMaxMP();
+    obj["str"] = (int)stats->GetSTR();
+    obj["magic"] = (int)stats->GetMAGIC();
+    obj["vit"] = (int)stats->GetVIT();
+    obj["int"] = (int)stats->GetINTEL();
+    obj["speed"] = (int)stats->GetSPEED();
+    obj["luck"] = (int)stats->GetLUCK();
+  };
+
+  JsonBox::Array characters;
+  for (auto world : mServer->GetWorlds()) {
+    auto registered = world->GetRegisteredWorld();
+    if (!registered ||
+        registered->GetStatus() == objects::RegisteredWorld::Status_t::INACTIVE) {
+      continue;
+    }
+
+    auto worldDB = world->GetWorldDatabase();
+    if (!worldDB) {
+      continue;
+    }
+
+    for (auto character : objects::Character::LoadCharacterListByAccount(
+             worldDB, account->GetUUID())) {
+      JsonBox::Object c;
+      c["name"] = character->GetName().ToUtf8();
+      c["world"] = registered->GetName().ToUtf8();
+      c["gender"] =
+          character->GetGender() == objects::Character::Gender_t::MALE
+              ? "Male"
+              : "Female";
+      c["lnc"] = (int)character->GetLNC();
+      c["alignment"] = character->GetLNC() <= -5000
+                           ? "Law"
+                           : (character->GetLNC() >= 5000 ? "Chaos" : "Neutral");
+      c["last_login"] = (int)character->GetLastLogin();
+      c["deleting"] = character->GetKillTime() != 0;
+      statsJson(character->GetCoreStats().Get(worldDB, true), c);
+
+      auto clan = character->GetClan().Get(worldDB, true);
+      c["clan"] = clan ? clan->GetName().ToUtf8() : "";
+
+      auto active = character->GetActiveDemon();
+      JsonBox::Array demons;
+      auto comp = character->GetCOMP().Get(worldDB, true);
+      if (comp) {
+        for (auto demonRef : comp->GetDemons()) {
+          auto demon = demonRef.Get(worldDB, true);
+          if (!demon) {
+            continue;
+          }
+
+          JsonBox::Object d;
+          auto def = mDefinitionManager->GetDevilData(demon->GetType());
+          d["name"] = def ? def->GetBasic()->GetName().ToUtf8()
+                          : libcomp::String("Demon %1")
+                                .Arg(demon->GetType())
+                                .ToUtf8();
+          d["slot"] = (int)demon->GetBoxSlot();
+          d["familiarity"] = (int)demon->GetFamiliarity();
+          d["active"] = active.GetUUID() == demon->GetUUID();
+          statsJson(demon->GetCoreStats().Get(worldDB, true), d);
+          demons.push_back(d);
+        }
+      }
+      c["demons"] = demons;
+      characters.push_back(c);
+    }
+  }
+
+  response["characters"] = characters;
 
   return true;
 }

@@ -114,6 +114,9 @@ class ApiHandler : public CivetHandler {
   bool Account_ClientLogin(const JsonBox::Object& request,
                            JsonBox::Object& response,
                            const std::shared_ptr<ApiSession>& session);
+  bool Account_GetCharacters(const JsonBox::Object& request,
+                             JsonBox::Object& response,
+                             const std::shared_ptr<ApiSession>& session);
   bool Account_Register(const JsonBox::Object& request,
                         JsonBox::Object& response,
                         const std::shared_ptr<ApiSession>& session);
