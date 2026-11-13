@@ -14,8 +14,11 @@ A small window to edit the three files the game and the shortcut bars patch
 
 Close the game before saving: it writes KeyConfigOption.txt and
 ShortcutBars.txt itself when it exits. Without a folder argument the tool
-uses the client folder remembered by scripts/start_server.ps1, or asks.
-Needs Python 3 with tkinter (included in the python.org installer).
+uses its own folder when it is the KeyConfigTool.exe build (shipped next to
+ImagineClient.exe by the updater), then the current folder, then the client
+folder remembered by scripts/start_server.ps1, or asks.
+Runs with Python 3 and tkinter; scripts/build_key_config_tool.bat makes the
+stand-alone KeyConfigTool.exe for players who don't have Python.
 """
 import os
 import re
@@ -760,7 +763,16 @@ class App(tk.Tk):
 
 
 def main():
-    client = sys.argv[1] if len(sys.argv) > 1 else read_client_dir()
+    client = sys.argv[1] if len(sys.argv) > 1 else None
+    if not client and getattr(sys, 'frozen', False):
+        # KeyConfigTool.exe, shipped in the client folder by the updater
+        client = os.path.dirname(os.path.abspath(sys.executable))
+    if not client:
+        here = os.getcwd()
+        if os.path.exists(os.path.join(here, 'ImagineClient.exe')):
+            client = here
+    if not client:
+        client = read_client_dir()
     if not client or not os.path.exists(os.path.join(client, 'ImagineClient.exe')):
         root = tk.Tk()
         root.withdraw()

@@ -59,7 +59,9 @@ Like the partner AI patch it updates the hash in `comp_client.dll`; publish both
 - **Extra bars:** add or remove bars and set their page, layout and position.
 - **Macros:** up to 10 macros of up to 8 steps (page and slot), one step per press or all at once, and their keys.
 
-Close the game before saving, because the game rewrites `KeyConfigOption.txt` and `ShortcutBars.txt` when it exits. The first save keeps the old files as `.bak`. These three files are personal settings, so they are not published with the updater. Notes: `docs/client-shortcut-bars-notes.md`; the code is `shortcut_bars.asm` (rebuild with `build_shortcut_bars.py`, needs nasm).
+Close the game before saving, because the game rewrites `KeyConfigOption.txt` and `ShortcutBars.txt` when it exits. The first save keeps the old files as `.bak`. These three files are personal settings, so they are not published with the updater.
+
+To give the editor to every player, run `scripts\build_key_config_tool.bat` once on the server PC (it needs Python there, players don't). It builds the stand-alone `KeyConfigTool.exe` with PyInstaller, copies it into the client folder and publishes it with the updater, so every launcher downloads it next to `ImagineClient.exe`. Players double-click `KeyConfigTool.exe` in their game folder; it edits the files of the folder it is in. Run the script again after the editor changes (`-NoPublish` only builds and copies). Notes: `docs/client-shortcut-bars-notes.md`; the code is `shortcut_bars.asm` (rebuild with `build_shortcut_bars.py`, needs nasm).
 
 **Stagger rework** (channel server, `StaggerRework` in `channelconfig.xml`)
 
