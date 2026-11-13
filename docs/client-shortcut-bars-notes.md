@@ -63,6 +63,14 @@ into `shortcut_bars_code.py`.
 | H5 | 0x6d3d64 (key poll in the task update) | after the game's own keys: actions 0x88 + bar*16 + slot use slot 8+s of that bar's current page; macros; saves bar positions and pages every 2 s when they change |
 | H6 | 0x4973f4 (end of the action table) | registers ShortCutBar1_00-ShortCutBar6_15 (0x88-0xe7) and ShortCutMacro01-10 (0xe8-0xf1) |
 
+UseSlot reads the slot from the player's shortcut data (task 0x101, via
+0x42ae78): records of 0x28 bytes at +0x810, (page*16 + slot-8), type byte
+at +0, id at +8 and a "usable" byte at +0x10 that UseSlot requires
+(0x6d1da5, 0x6d1dd3). The game sets that byte only for the page the main
+bar shows (the data keeps its own current page at +0x808), so clicks, keys
+and macros on other pages go through `use_any`, which sets it while
+UseSlot runs and puts the old value back.
+
 Known limits of the first version: moving a slot from one bar to a
 different bar is ignored (same page moves work); cooldown effects drawn by
 the task on its own window may only show on the main bar.

@@ -316,36 +316,22 @@ cave_evt:
     mov edx, [ecx+0x9c]
     mov esi, [eax+0x2c]
     cmp esi, edx
-    je .ours                    ; main bar
+    je 0x6d4402                 ; main bar: original code
     push eax
     mov eax, esi
     call is_bar
     pop eax
     jz .notsrc
-.ours:
     cmp dword [eax+0x28], 1
-    jne .nolog
+    jne 0x6d4402                ; drops etc.: same handling as the main bar
+    push dword [eax+0x40]       ; slot
+    push dword [eax+0x38]       ; page of that bar
     push ecx
-    push edx
-    push eax
-    push dword [eax+0x40]
-    push dword [eax+0x38]
-    call rec_info
-    add esp, 8
-    mov ecx, eax
-    pop eax
-    push edx
-    push ecx
-    push dword [eax+0x40]
-    push dword [eax+0x38]
-    push esi
-    push s_dbgevt
-    call dbg
-    add esp, 24
-    pop edx
-    pop ecx
-.nolog:
-    jmp 0x6d4402                ; same handling for every bar, its own page
+    call use_any
+    add esp, 12
+    mov al, 1
+    pop esi
+    ret 4
 .notsrc:
     push eax
     mov eax, [eax+0x4c]
@@ -455,21 +441,9 @@ cave_keys:
     lea eax, [esi+8]
     push eax
     push dword [edi+B_PAGE]
-    mov ecx, ebp
-    call USESLOT
-    lea eax, [esi+8]
-    push eax
-    push dword [edi+B_PAGE]
-    call rec_info
-    add esp, 8
-    push edx
-    push eax
-    push dword [ebp+0xa4]
-    push dword [edi+B_PAGE]
-    push esi
-    push s_dbgkey
-    call dbg
-    add esp, 24
+    push ebp
+    call use_any
+    add esp, 12
     jmp .save
 .nexts:
     inc esi
@@ -483,34 +457,9 @@ cave_keys:
     popad
     ret
 
-; dbg(fmt, a, b, c, d): append a line to shortcut_bars_debug.txt (cdecl)
-dbg:
-    pushad
-    push s_a
-    push s_dbgfile
-    call [I_FOPEN]
-    add esp, 8
-    test eax, eax
-    jz .out
-    mov esi, eax
-    push dword [esp+0x20+0x18]
-    push dword [esp+0x24+0x14]
-    push dword [esp+0x28+0x10]
-    push dword [esp+0x2c+0x0c]
-    push dword [esp+0x30+0x08]
-    push dword [esp+0x34+0x04]
-    push esi
-    call [I_FPRINTF]
-    add esp, 28
-    push esi
-    call [I_FCLOSE]
-    add esp, 4
-.out:
-    popad
-    ret
-
-; rec_info(page, slot 8-23) cdecl -> eax = type | flag<<8, edx = id
-rec_info:
+; rec_ptr(page, slot 8-23) cdecl -> eax = the slot record in the player's
+; shortcut data (type byte at +0, id at +8, "usable" byte at +0x10), or 0
+rec_ptr:
     push ecx
     push 0x101
     call 0xad0050
@@ -526,17 +475,50 @@ rec_info:
     add ecx, [esp+12]           ; slot
     sub ecx, 8
     imul ecx, ecx, 0x28
-    lea ecx, [eax+ecx+0x810]
-    movzx eax, byte [ecx+0x10]
-    shl eax, 8
-    mov al, [ecx]
-    mov edx, [ecx+8]
+    lea eax, [eax+ecx+0x810]
     pop ecx
     ret
 .none:
-    mov eax, -1
-    xor edx, edx
+    xor eax, eax
     pop ecx
+    ret
+
+; use_any(task, page, slot 8-23) cdecl. UseSlot only uses records whose
+; "usable" byte is set, and the game sets it only for the page the main bar
+; shows; for a slot of another page it is set while UseSlot runs.
+use_any:
+    pushad
+    mov ebx, [esp+0x24]         ; task
+    mov ebp, [esp+0x28]         ; page
+    mov esi, [esp+0x2c]         ; slot
+    cmp esi, 8
+    jl .direct
+    push esi
+    push ebp
+    call rec_ptr
+    add esp, 8
+    test eax, eax
+    jz .direct
+    mov edi, eax
+    cmp byte [edi], 0
+    je .direct
+    mov dl, [edi+0x10]
+    push edx
+    mov byte [edi+0x10], 1
+    push esi
+    push ebp
+    mov ecx, ebx
+    call USESLOT
+    pop edx
+    mov [edi+0x10], dl
+    popad
+    ret
+.direct:
+    push esi
+    push ebp
+    mov ecx, ebx
+    call USESLOT
+    popad
     ret
 
 ; poll_macros: ebp = task
@@ -620,8 +602,9 @@ use_step:
     add ecx, 8
     push ecx
     push eax
-    mov ecx, ebp
-    call USESLOT
+    push ebp
+    call use_any
+    add esp, 12
 .bad:
     ret
 
@@ -932,10 +915,6 @@ cave_act:
 
 ; ---- constant data ---------------------------------------------------------
 s_file:     db 'ShortcutBars.txt', 0
-s_dbgfile:  db 'shortcut_bars_debug.txt', 0
-s_a:        db 'a', 0
-s_dbgkey:   db 'key slot=%d page=%d taskpage=%d rec=%x id=%d', 10, 0
-s_dbgevt:   db 'click win=%d page=%d slot=%d rec=%x id=%d', 10, 0
 s_mfile:    db 'Macros.txt', 0
 s_mfmt:     db '%d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d', 0
 s_mhelp:
