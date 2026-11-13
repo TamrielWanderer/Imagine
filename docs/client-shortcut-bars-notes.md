@@ -59,6 +59,7 @@ into `shortcut_bars_code.py`.
 | H2/H3 | 0xdedb30 / 0xdedb71 (SetSlot entry and exit) | when the main bar gets a slot, the record is copied to every extra bar (and drawn if that page is showing) |
 | H4 | 0x6d43f5 (event 0x4c2) | events from an extra bar take the main bar's path (the event carries the bar's own page); drops from other windows onto an extra bar run 0x6d4050 with task+0xa4 set to that bar's page |
 | H7 | 0x6a3537, 0x6a74ba, 0x6a74cb (UI event dispatcher 0x6a3070) | the dispatcher only sends a window's events to the shortcut task (task type 0x4e) when the window equals `0xd81e70(0x159)`, the first bar; for an extra bar these calls return that bar's id instead |
+| H8 | 0x6d1d80 | UseSlot refused any page but the task's current page (`cmp [task+0xa4], page; jne`); the jump is removed, the slot data is per page |
 | H5 | 0x6d3d64 (key poll in the task update) | after the game's own keys: actions 0x88 + bar*16 + slot use slot 8+s of that bar's current page; macros; saves bar positions and pages every 2 s when they change |
 | H6 | 0x4973f4 (end of the action table) | registers ShortCutBar1_00-ShortCutBar6_15 (0x88-0xe7) and ShortCutMacro01-10 (0xe8-0xf1) |
 

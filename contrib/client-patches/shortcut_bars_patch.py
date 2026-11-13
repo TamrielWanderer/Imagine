@@ -71,6 +71,10 @@ PATCHES = [
                              '00e89ba96d0083c404'),
      rel(b'\xe8', 0x6a74cb, SYMBOLS['cave_find_edi'], 13),
      'send drops onto the extra bars to the shortcut task'),
+    # UseSlot(page, slot) refused any page but the main bar's current one
+    # (cmp [task+0xa4], page / jne fail); the slot data is per page anyway.
+    (0x6d1d80, bytes.fromhex('75d0'), bytes.fromhex('9090'),
+     'use slots of any page (clicks, keys and macros on the extra bars)'),
     (0x6d3d64, bytes.fromhex('e82cf5d4ff'),
      rel(b'\xe8', 0x6d3d64, SYMBOLS['cave_keys'], 5),
      'keys ShortCutBarN_SS'),
