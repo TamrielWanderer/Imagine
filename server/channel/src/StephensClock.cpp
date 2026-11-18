@@ -395,7 +395,7 @@ void StephensClock::InstanceEntering(
   // Roll the rules of this run
   std::set<uint8_t> rolled;
   while (rolled.size() < v.Modifiers && rolled.size() < MODIFIER_COUNT) {
-    rolled.insert(RNG(uint8_t, 1, MODIFIER_COUNT));
+    rolled.insert((uint8_t)RNG(uint16_t, 1, (uint16_t)MODIFIER_COUNT));
   }
 
   instance->ClearClockModifiers();
@@ -867,7 +867,7 @@ void StephensClock::OfferBoons(const std::shared_ptr<ChannelServer>& server,
 
   std::set<uint8_t> offer;
   while (offer.size() < 3) {
-    offer.insert(RNG(uint8_t, 1, BOON_COUNT));
+    offer.insert((uint8_t)RNG(uint16_t, 1, (uint16_t)BOON_COUNT));
   }
 
   instance->ClearClockBoonOffer();
