@@ -1163,8 +1163,10 @@ void StephensClock::HideTimer(
   libcomp::Packet p;
   p.WritePacketCode(ChannelToClientPacketCode_t::PACKET_TIME_LIMIT_END);
   p.WriteU32Little((uint32_t)conf->GetStephensClockTimerID());
-  p.WriteS8(success ? 0 : 1);  // The client shows CLEAR for 0
-  p.WriteU8(1);
+  // The last byte is the result: with 1 the client prints CLEAR whatever
+  // the byte before it is (tested), so a failure sends 0.
+  p.WriteS8(0);
+  p.WriteU8(success ? 1 : 0);
 
   if (queue) {
     client->QueuePacket(p);
