@@ -296,23 +296,20 @@ void StephensClock::InstanceCreated(
       !instance->GetTimeLimitData() &&
       !conf->StephensClockDenyInstancesContains(def->GetID());
 
-  // The dungeon needs a boss: the run ends when the last one falls. The
-  // final boss room is the last zone of the instance that has boss spawns.
+  // The run is cleared when the boss of the final room falls. The final
+  // room is the last zone of the instance that has enemies at all. Many
+  // dungeons get their enemies from zone partials (shared by all of their
+  // zones), so those have to be applied before looking.
   uint32_t finalZoneID = 0, finalDynamicMapID = 0;
   if (valid) {
     auto serverDataManager = server->GetServerDataManager();
     for (size_t i = 0; i < def->ZoneIDsCount() && i < def->DynamicMapIDsCount();
          i++) {
-      auto zoneDef = serverDataManager->GetZoneData(def->GetZoneIDs(i),
-                                                    def->GetDynamicMapIDs(i));
-      if (zoneDef) {
-        for (auto& pair : zoneDef->GetSpawns()) {
-          if (IsBoss(pair.second)) {
-            finalZoneID = def->GetZoneIDs(i);
-            finalDynamicMapID = def->GetDynamicMapIDs(i);
-            break;
-          }
-        }
+      auto zoneDef = serverDataManager->GetZoneData(
+          def->GetZoneIDs(i), def->GetDynamicMapIDs(i), true);
+      if (zoneDef && zoneDef->SpawnsCount() > 0) {
+        finalZoneID = def->GetZoneIDs(i);
+        finalDynamicMapID = def->GetDynamicMapIDs(i);
       }
     }
 
@@ -320,11 +317,24 @@ void StephensClock::InstanceCreated(
   }
 
   if (!valid) {
+    LogZoneManagerWarning([&]() {
+      return libcomp::String(
+                 "Stephen's Clock: instance %1 (variant %2) cannot be a clock "
+                 "run\n")
+          .Arg(instance->GetDefinitionID())
+          .Arg(variant ? variant->GetID() : 0);
+    });
+
     Tell(server, client,
          "Stephen's Clock does not react to this place. It stays wound and "
          "was not used up.");
     return;
   }
+
+  Tell(server, client,
+       libcomp::String("Stephen's Clock %1 answers this dungeon. The run "
+                       "starts when you enter.")
+           .Arg(ROMAN[tier]));
 
   instance->SetClockPendingTier(tier);
   instance->SetClockItemID(itemID);
@@ -352,12 +362,18 @@ void StephensClock::InstanceEntering(
   auto owner = server->GetManagerConnection()->GetEntityClient(
       instance->GetClockOwnerCID(), true);
   if (!owner) {
+    LogZoneManagerWarningMsg(
+        "Stephen's Clock: the player who wound the clock is not on this "
+        "channel, no run started\n");
     return;
   }
 
   auto ownerState = owner->GetClientState();
   uint32_t itemID = instance->GetClockItemID();
   if (ownerState->GetClockArmedItem() != itemID) {
+    Tell(server, owner,
+         "Your Stephen's Clock is no longer wound. This is a normal "
+         "dungeon.");
     return;
   }
 
@@ -416,7 +432,7 @@ void StephensClock::InstanceEntering(
         "is not loaded, clock runs will have no effects\n");
   }
 
-  LogZoneManagerDebug([&]() {
+  LogZoneManagerWarning([&]() {
     return libcomp::String(
                "Stephen's Clock %1 run started in instance %2 (%3), party "
                "level %4, %5 player(s)\n")

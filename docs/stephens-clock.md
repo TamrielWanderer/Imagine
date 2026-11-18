@@ -101,9 +101,11 @@ What each rule and boon does is data: edit `contrib/roguelike/make_tokusei.py`, 
 
 ### Which dungeons work
 
-A dungeon can be a clock run if it is a normal instance (not a time trial, demon-only dungeon, mission, PvP, Diaspora, Pentalpha or digitalize dungeon), has no timer of its own at creation, and has at least one spawn of category BOSS. 156 of the 373 instance definitions qualify. Anywhere else the clock says so and is not used up.
+A dungeon can be a clock run if it is a normal instance (not a time trial, demon-only dungeon, mission, PvP, Diaspora, Pentalpha or digitalize dungeon) and has no timer of its own at creation. Anywhere else the clock says "does not react to this place" and is not used up. When it does work, the player who wound it sees "Stephen's Clock I answers this dungeon" on creating the instance.
 
-The run counts as cleared when a boss dies in the **final boss room** and no boss is alive there six seconds later. The final boss room is the last zone in the instance's zone list that has boss spawns. This is a rule of thumb: if a dungeon is judged wrong, add it to `StephensClockDenyInstances`.
+The run counts as cleared when an enemy of category BOSS dies in the **final room** and no boss is alive there six seconds later. The final room is the last zone in the instance's zone list that has any enemies defined (zone partials included, because many dungeons get their enemies from a partial shared by all their zones). This is a rule of thumb. A dungeon whose last boss is not in that room, or whose bosses are not marked BOSS, still gives the run's rewards but can never be cleared for the next clock; if a dungeon is judged wrong, add it to `StephensClockDenyInstances`.
+
+The channel log gets a line when a run starts ("Stephen's Clock I run started in instance ...") and when an instance is refused.
 
 ### How it works
 
