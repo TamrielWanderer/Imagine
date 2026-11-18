@@ -21,12 +21,13 @@ This is the `experimental` branch. It holds changes that differ from the origina
 | Display | Fullscreen is always borderless fullscreen at the desktop resolution | [Borderless fullscreen](#list-of-changes) |
 | Combat | Stagger rework: affinity-based stagger, recovery window, Smirk | [Stagger rework](#list-of-changes) |
 | Inventory | `@sort`, `@deposit`, bigger item stacks | [Inventory QoL](#list-of-changes) |
+| Dungeons | Stephen's Clock: rogue-like dungeon runs with ten tiers, random rules, boons and a countdown | [Stephen's Clock](#list-of-changes), [docs/stephens-clock.md](docs/stephens-clock.md) |
 | Language | The client is translated to English: menus, items, skills, compendium, story and NPC dialogue | [English translation](#english-translation-of-the-client) |
 | Accounts | Player portal web page: create an account, see characters, stats, alignment and demons | [Player portal](#player-portal-accounts-and-characters) |
 | Hosting | Windows build and server scripts, LAN/Internet play, client updates through the launcher | [Running a local server](#running-a-local-server-on-windows) |
 | Admin | GM command reference | [docs/GM_commands.txt](docs/GM_commands.txt) |
 
-**Publishing to players.** Everything a player needs on their PC goes through the launcher ([Client updates](#client-updates-through-the-launcher)): the patched _ImagineClient.exe_ and _comp_client.dll_ (client patches), _KeyConfigTool.exe_, the translated _BinaryData_ files and _BinaryData/Shield/ItemData.sbin_ (stack sizes). Personal settings (_KeyConfigOption.txt_, _ShortcutBars.txt_, _Macros.txt_, _InsideOption.txt_) are never published.
+**Publishing to players.** Everything a player needs on their PC goes through the launcher ([Client updates](#client-updates-through-the-launcher)): the patched _ImagineClient.exe_ and _comp_client.dll_ (client patches), _KeyConfigTool.exe_, the translated _BinaryData_ files and _BinaryData/Shield/ItemData.sbin_ (stack sizes) and the Stephen's Clock data (_ItemData.sbin_, _CItemData.sbin_, _TimeLimitData.sbin_). Personal settings (_KeyConfigOption.txt_, _ShortcutBars.txt_, _Macros.txt_, _InsideOption.txt_) are never published.
 
 ### List of changes ###
 
@@ -142,6 +143,19 @@ The client has no buttons for these, so they are chat commands any player can us
 Equipped items, Macca and Magnetite never move, and items that can't be stored stay in the inventory. Settings in `channelconfig.xml`: `QoLCommands` (default `true`) turns the commands on, and `QuickDepositAnywhere` (default `true`) lets `@deposit` work anywhere. Set it to `false` to require the depository window to be open.
 
 **Bigger item stacks.** `scripts/stack_sizes.bat` raises the stack limit of stackable items in `BinaryData/Shield/ItemData.sbin`, which the server and the client both read. By default every limit from 10 up is multiplied by 10, capped at 9999 (10 → 100, 100 → 1000, 1000 → 9999). Limits under 10 (items you're only meant to hold a few of) and limits already above 9999 don't change. The numbers can be changed (`-Multiplier`, `-Min`, `-Max`), `-Check` shows the changes without writing, and `-Restore` puts the original file back. Running it again always starts from the original, so limits are never multiplied twice. Restart the server afterwards and publish the file with `publish_update.bat -Add BinaryData\Shield\ItemData.sbin` so every player's client has the same limits.
+
+**Stephen's Clock** (channel server, `StephensClock` in `channel.xml`, [docs/stephens-clock.md](docs/stephens-clock.md))
+
+A rogue-like mode for dungeons. A player winds a **Stephen's Clock** (tier I to X) and the next dungeon they open becomes a clock run for the whole party:
+
+* **Scaled enemies.** Enemy levels are raised to the party (5 under at tier I, 4 over at tier X) and they get more HP and damage per tier, plus HP for every extra player.
+* **Better rewards while the clock runs.** XP, Macca, Magnetite and drop rate go up with the tier (+20% / +20% / +10% per tier) and bosses carry bonus loot.
+* **Countdown.** 25 minutes, +4 per boss kill, -2 per player death. When it ends the dungeon can still be finished, but rewards are back to normal.
+* **Random rules.** One to three per run, written to change the fight for everyone instead of forbidding things ("Fire damage +50% for everyone", "All demons have permanent Sukukaja").
+* **Boons.** Every 20 kills and after each boss the clock offers three bonuses for the rest of the run; pick one with `@boon N`. `@clock` shows the run.
+* **Ladder.** Bosses of level 70+ in normal dungeons can drop Stephen's Clock I. Clearing a clock run in time gives the next tier to the player who used the clock.
+
+Setup after building: run `scripts\stephens_clock_data.bat` (adds the ten items and the countdown to the client data), restart the server, and publish the files with `scripts\publish_update.bat -Add BinaryData\Shield\ItemData.sbin,BinaryData\Shield\CItemData.sbin,BinaryData\Shield\TimeLimitData.sbin`. Run the script again after `apply_translation` or `stack_sizes`, which rebuild the item files. Give yourself a clock for testing with `@item 19001` (tier I) to `@item 19010` (tier X). All numbers are settings or data; the tier table, the rules, the boons and the settings are in [docs/stephens-clock.md](docs/stephens-clock.md).
 
 **Server partner assist (off by default)**
 

@@ -142,6 +142,7 @@
 #include "EventManager.h"
 #include "ManagerConnection.h"
 #include "MatchManager.h"
+#include "StephensClock.h"
 #include "TokuseiManager.h"
 #include "Zone.h"
 #include "ZoneInstance.h"
@@ -1252,6 +1253,18 @@ bool SkillManager::ExecuteSkill(
 
   activated->SetExecutionRequestTime(ChannelServer::GetServerTime());
   source->RefreshCurrentPosition(activated->GetExecutionTime());
+
+  // Using a Stephen's Clock winds it, whatever skill the item borrows
+  if (client && pSkill->ItemID &&
+      StephensClock::GetItemTier(mServer.lock(), pSkill->ItemID)) {
+    StephensClock::UseItem(mServer.lock(), client, pSkill->ItemID);
+
+    ProcessSkillResult(activated, ctx);
+    FinalizeSkillExecution(client, ctx, activated);
+    FinalizeSkill(ctx, activated);
+
+    return true;
+  }
 
   // Execute the skill
   auto fIter = mSkillFunctions.find(pSkill->FunctionID);
@@ -2762,7 +2775,9 @@ bool SkillManager::DetermineCosts(
           isActive && category->GetSubCategory() == ITEM_SUBCATEGORY_GENERIC;
       bool isDemonInstItem =
           isActive && category->GetSubCategory() == ITEM_SUBCATEGORY_DEMON_SOLO;
-      if (!isRental && (isGeneric || isDemonInstItem)) {
+      // Stephen's Clock is only wound here, entering a dungeon uses it up
+      if (!isRental && (isGeneric || isDemonInstItem) &&
+          !StephensClock::GetItemTier(server, pSkill->ItemID)) {
         itemCosts[pSkill->ItemID] = 1;
       }
     }
@@ -6721,6 +6736,11 @@ void SkillManager::HandleKills(
     }
   }
 
+  // Deaths cost time on Stephen's Clock
+  if (instance && playersKilled.size() > 0) {
+    StephensClock::PlayersKilled(server, instance, playersKilled.size());
+  }
+
   switch (zone->GetInstanceType()) {
     case InstanceType_t::PVP:
       // Increase by PvP values and set auto-revive time-out
@@ -6978,6 +6998,12 @@ void SkillManager::HandleKills(
 
       auto drops = GetItemDrops(source, eState, sourceClient, zone);
 
+      // Stephen's Clock: boss bonus loot, or the clock itself. Put first
+      // so a full body does not push them out.
+      for (auto drop : StephensClock::GetExtraDrops(server, zone, eState)) {
+        drops[(uint8_t)objects::DropSet::Type_t::NORMAL].push_front(drop);
+      }
+
       // Remove cooldown restricted drops
       std::set<int32_t> invalid;
       for (auto& pair : drops) {
@@ -7010,8 +7036,9 @@ void SkillManager::HandleKills(
       auto dDrops = drops[(uint8_t)objects::DropSet::Type_t::DESTINY];
 
       uint64_t lootTime = 0;
-      if (characterManager->CreateLootFromDrops(lootBody, nDrops, luck, false,
-                                                maccaRate, magRate)) {
+      if (characterManager->CreateLootFromDrops(
+              lootBody, nDrops, luck, false, maccaRate, magRate,
+              StephensClock::GetDropRate(server, instance))) {
         // Bodies remain lootable for 120 seconds with loot
         lootTime = (uint64_t)(now + 120000000);
       } else {
@@ -7060,6 +7087,13 @@ void SkillManager::HandleKills(
 
     if (multiZoneBosses.size() > 0) {
       zoneManager->MultiZoneBossKilled(zone, sourceState, multiZoneBosses);
+    }
+
+    // Stephen's Clock: boss time, boons and clearing the dungeon
+    if (instance) {
+      for (auto eState : enemiesKilled) {
+        StephensClock::EnemyKilled(server, zone, eState);
+      }
     }
 
     // Update quest kill counts (ignore for demon only zones)

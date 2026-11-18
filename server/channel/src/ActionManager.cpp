@@ -113,6 +113,7 @@
 #include "EventManager.h"
 #include "ManagerConnection.h"
 #include "MatchManager.h"
+#include "StephensClock.h"
 #include "TokuseiManager.h"
 #include "ZoneManager.h"
 
@@ -2652,6 +2653,12 @@ bool ActionManager::UpdateZoneInstance(ActionContext& ctx) {
             act->GetTimerExpirationEventID());
 
         uint8_t resultCode = zoneManager->CreateInstance(instAccess);
+        if (resultCode == 1) {
+          // Created on this channel: a wound Stephen's Clock claims it
+          StephensClock::InstanceCreated(
+              server, ctx.Client,
+              zoneManager->GetInstance(instAccess->GetInstanceID()));
+        }
         if (resultCode && moveNow) {
           // Move all players, kicking all players not in the source
           // player's team or not in the set from their current teams
@@ -2911,7 +2918,9 @@ bool ActionManager::CreateLoot(ActionContext& ctx) {
       }
     }
 
-    characterManager->CreateLootFromDrops(lBox, drops, 0, true);
+    characterManager->CreateLootFromDrops(
+        lBox, drops, 0, true, 1.f, 1.f,
+        StephensClock::GetDropRate(server, ctx.CurrentZone->GetInstance()));
 
     auto lState = std::make_shared<LootBoxState>(lBox);
 

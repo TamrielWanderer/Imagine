@@ -126,6 +126,7 @@
 #include "ManagerConnection.h"
 #include "MatchManager.h"
 #include "SkillManager.h"
+#include "StephensClock.h"
 #include "TokuseiManager.h"
 #include "ZoneManager.h"
 
@@ -1402,6 +1403,15 @@ void CharacterManager::SummonDemon(
   dState->SetEntity(demon, definitionManager);
   dState->RefreshLearningSkills(0, definitionManager);
   dState->UpdateDemonState(definitionManager);
+
+  // A demon summoned during a Stephen's Clock run joins it
+  {
+    auto clockZone = cState->GetZone();
+    auto clockInstance = clockZone ? clockZone->GetInstance() : nullptr;
+    if (clockInstance) {
+      StephensClock::ApplyToPlayer(server, client, clockInstance, false);
+    }
+  }
 
   // Mark that the demon state has not been fully summoned yet so
   // the summon effect only displays once
@@ -3020,7 +3030,7 @@ CharacterManager::DetermineDropSets(
 
 std::list<std::shared_ptr<objects::ItemDrop>> CharacterManager::DetermineDrops(
     const std::list<std::shared_ptr<objects::ItemDrop>>& drops, int16_t luck,
-    bool minLast) {
+    bool minLast, float rateScale) {
   std::list<std::shared_ptr<objects::ItemDrop>> results;
   if (drops.size() == 0) {
     return results;
@@ -3056,6 +3066,9 @@ std::list<std::shared_ptr<objects::ItemDrop>> CharacterManager::DetermineDrops(
     }
 
     dropRate = (uint32_t)((double)dropRate * (double)(1.f + globalDropBonus));
+    if (rateScale != 1.f) {
+      dropRate = (uint32_t)((double)dropRate * (double)rateScale);
+    }
 
     if (dropRate >= 10000 || RNG(uint16_t, 1, 10000) <= dropRate ||
         (minLast && results.size() == 0 && drops.back() == drop)) {
@@ -3069,8 +3082,8 @@ std::list<std::shared_ptr<objects::ItemDrop>> CharacterManager::DetermineDrops(
 bool CharacterManager::CreateLootFromDrops(
     const std::shared_ptr<objects::LootBox>& box,
     const std::list<std::shared_ptr<objects::ItemDrop>>& drops, int16_t luck,
-    bool minLast, float maccaRate, float magRate) {
-  auto dSet = DetermineDrops(drops, luck, minLast);
+    bool minLast, float maccaRate, float magRate, float dropRate) {
+  auto dSet = DetermineDrops(drops, luck, minLast, dropRate);
   auto lootItems = CreateLootFromDrops(dSet, maccaRate, magRate);
 
   bool added = false;

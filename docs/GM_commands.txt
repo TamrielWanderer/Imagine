@@ -20,6 +20,8 @@ PLAYER COMMANDS (no GM level needed, see QoLCommands in channelconfig.xml)
   @deposit                 Store items the depository already holds.
   @deposit all             Store every storable item.
   @qol                     List these commands.
+  @clock                   Show your Stephen's Clock run (docs/stephens-clock.md).
+  @boon N                  Choose boon N in a Stephen's Clock run.
 
 QUICK TESTING RECIPES
 ------------------------------------------------------------------------

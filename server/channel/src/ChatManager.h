@@ -734,6 +734,26 @@ class ChatManager {
       const std::shared_ptr<channel::ChannelClientConnection>& client,
       const std::list<libcomp::String>& args);
 
+  /**
+   * Player command: show the Stephen's Clock state.
+   * @param client Pointer to the client that sent the command
+   * @param args List of arguments for the command
+   * @return true if the command was handled properly, else false
+   */
+  bool GMCommand_Clock(
+      const std::shared_ptr<channel::ChannelClientConnection>& client,
+      const std::list<libcomp::String>& args);
+
+  /**
+   * Player command: choose a boon in a Stephen's Clock run.
+   * @param client Pointer to the client that sent the command
+   * @param args List of arguments for the command
+   * @return true if the command was handled properly, else false
+   */
+  bool GMCommand_Boon(
+      const std::shared_ptr<channel::ChannelClientConnection>& client,
+      const std::list<libcomp::String>& args);
+
   /** QoL: list the player QoL commands */
   bool GMCommand_QoLHelp(
       const std::shared_ptr<channel::ChannelClientConnection>& client,

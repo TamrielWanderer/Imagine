@@ -113,6 +113,7 @@
 #include "PerformanceTimer.h"
 #include "PlasmaState.h"
 #include "SkillManager.h"
+#include "StephensClock.h"
 #include "TokuseiManager.h"
 #include "Zone.h"
 #include "ZoneGeometryLoader.h"
@@ -671,6 +672,9 @@ bool ZoneManager::EnterZone(
     server->GetTokuseiManager()->Recalculate(cState, true);
   }
 
+  // Stephen's Clock effects last for the whole instance
+  StephensClock::ApplyToPlayer(server, client, nextInstance, true);
+
   // Set the zone-in spot for instances
   if (nextInstance) {
     auto dynamicMap = nextZone->GetDynamicMap();
@@ -727,6 +731,7 @@ bool ZoneManager::EnterZone(
   if (currentInstance != nextInstance) {
     // End any previous instance specific data if leaving
     if (currentInstance) {
+      StephensClock::InstanceLeft(server, client, currentInstance);
       EndInstanceTimer(currentInstance, client, false, true);
     }
 
@@ -1541,6 +1546,10 @@ bool ZoneManager::MoveToInstance(
   if (access->GetIsLocal()) {
     // Enter the instance on this channel
     auto instance = GetInstance(access->GetInstanceID());
+
+    // A pending Stephen's Clock run starts before the first zone is built
+    StephensClock::InstanceEntering(server, instance);
+
     auto zone = GetInstanceStartingZone(instance);
     if (zone) {
       auto zoneDef = zone->GetDefinition();
@@ -2653,6 +2662,7 @@ void ZoneManager::HandleSpecialInstancePopulate(
   auto instance = zone->GetInstance();
   if (instance) {
     SendDestinyBox(client, false, true);
+    StephensClock::ZoneEntered(mServer.lock(), client, instance);
   }
 
   auto instVariant = instance ? instance->GetVariant() : nullptr;
@@ -4015,9 +4025,11 @@ std::shared_ptr<ActiveEntityState> ZoneManager::CreateEnemy(
   }
 
   auto stats = libcomp::PersistentObject::New<objects::EntityStats>();
-  stats->SetLevel(spawn && spawn->GetLevel() > 0
-                      ? spawn->GetLevel()
-                      : (int8_t)def->GetGrowth()->GetBaseLevel());
+  stats->SetLevel(StephensClock::GetEnemyLevel(
+      zone, spawn, asAlly,
+      spawn && spawn->GetLevel() > 0
+          ? spawn->GetLevel()
+          : (int8_t)def->GetGrowth()->GetBaseLevel()));
   server->GetCharacterManager()->CalculateDemonBaseStats(nullptr, stats, def);
 
   std::shared_ptr<ActiveEntityState> state;
@@ -4065,6 +4077,8 @@ std::shared_ptr<ActiveEntityState> ZoneManager::CreateEnemy(
   state->SetStatusEffectsActive(true, definitionManager);
   state->SetKillValue(spawn ? spawn->GetKillValue() : 0);
   state->SetZone(zone);
+
+  StephensClock::ApplyToEnemy(server, zone, state, spawn, asAlly);
 
   server->GetTokuseiManager()->Recalculate(state);
   state->RecalculateStats(definitionManager);
@@ -4507,6 +4521,11 @@ bool ZoneManager::StartInstanceTimer(
   }
 
   if (sendTimer) {
+    // The dungeon's own timer takes over the display from Stephen's Clock
+    for (auto client : instance->GetConnections()) {
+      StephensClock::HideTimer(mServer.lock(), client, false);
+    }
+
     SendInstanceTimer(instance, nullptr, false);
   }
 
@@ -4727,6 +4746,9 @@ bool ZoneManager::StopInstanceTimer(
           EndInstanceTimer(instance, client, false);
         }
       }
+
+      // The dungeon's own timer is gone, show Stephen's Clock again
+      StephensClock::SendTimer(mServer.lock(), instance, nullptr, false);
     } break;
   }
 

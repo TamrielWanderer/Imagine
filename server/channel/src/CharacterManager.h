@@ -559,11 +559,12 @@ class CharacterManager {
    * @param luck Current luck value to use when calculating drop chances
    * @param minLast Optional param to specify if the set needs at least
    *  one item in which case the last item will be used
+   * @param rateScale Optional multiplier of every drop rate
    * @return List of item drops that should be "dropped"
    */
   std::list<std::shared_ptr<objects::ItemDrop>> DetermineDrops(
       const std::list<std::shared_ptr<objects::ItemDrop>>& drops, int16_t luck,
-      bool minLast = false);
+      bool minLast = false, float rateScale = 1.f);
 
   /**
    * Create loot from drops based upon the supplied luck value (can be 0)
@@ -578,12 +579,14 @@ class CharacterManager {
    *  affect notes.
    * @param magRate Optional param to scale mag dropped. Does not
    *  affect pressers.
+   * @param dropRate Optional multiplier of every drop rate
    * @return true if one or more item was added, false if none were
    */
   bool CreateLootFromDrops(
       const std::shared_ptr<objects::LootBox>& box,
       const std::list<std::shared_ptr<objects::ItemDrop>>& drops, int16_t luck,
-      bool minLast = false, float maccaRate = 1.f, float magRate = 1.f);
+      bool minLast = false, float maccaRate = 1.f, float magRate = 1.f,
+      float dropRate = 1.f);
 
   /**
    * Create loot from pre-filtered drops

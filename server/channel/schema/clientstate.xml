@@ -7,6 +7,9 @@
         <member type="bool" name="AcceptRevival"/>
         <member type="bool" name="BikeBoosting"/>
         <member type="bool" name="InstanceTimerActive"/>
+        <member type="u32" name="ClockArmedItem"/>
+        <member type="bool" name="ClockTimerShown"/>
+        <member type="u32" name="ClockSeenInstance"/>
         <member type="bool" name="LockMovement"/>
         <member type="u32" name="LastZoneID"/>
         <member type="u32" name="LastInstanceID"/>

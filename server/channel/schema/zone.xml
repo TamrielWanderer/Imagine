@@ -64,6 +64,31 @@
         <member type="PvPInstanceStats*" name="PvPStats"
             nulldefault="true"/>
         <member type="u8" name="PoisonLevel" max="100"/>
+        <!-- Stephen's Clock run (see StephensClock.h) -->
+        <member type="u8" name="ClockPendingTier"/>
+        <member type="u32" name="ClockItemID"/>
+        <member type="s32" name="ClockOwnerCID"/>
+        <member type="u8" name="ClockTier"/>
+        <member type="bool" name="ClockExpired"/>
+        <member type="bool" name="ClockComplete"/>
+        <member type="u64" name="ClockExpire"/>
+        <member type="u8" name="ClockLevel"/>
+        <member type="u8" name="ClockPartySize"/>
+        <member type="u32" name="ClockFinalZoneID"/>
+        <member type="u32" name="ClockFinalDynamicMapID"/>
+        <member type="u8" name="ClockBossKills"/>
+        <member type="u16" name="ClockKills"/>
+        <member type="u8" name="ClockRewardPending"/>
+        <member type="list" name="ClockModifiers">
+            <element type="u8"/>
+        </member>
+        <member type="map" name="ClockBoons">
+            <key type="u8"/>
+            <value type="u8"/>
+        </member>
+        <member type="list" name="ClockBoonOffer">
+            <element type="u8"/>
+        </member>
     </object>
     <object name="PvPBase" scriptenabled="true" persistent="false">
         <member type="s8" name="Team" default="2"/>

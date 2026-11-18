@@ -87,6 +87,7 @@
 #include "ManagerConnection.h"
 #include "MatchManager.h"
 #include "SkillManager.h"
+#include "StephensClock.h"
 #include "TokuseiManager.h"
 #include "ZoneManager.h"
 
@@ -139,6 +140,8 @@ ChatManager::ChatManager(const std::weak_ptr<ChannelServer>& server)
   mGMands["reunion"] = &ChatManager::GMCommand_Reunion;
   mGMands["scrap"] = &ChatManager::GMCommand_Scrap;
   mGMands["qol"] = &ChatManager::GMCommand_QoLHelp;
+  mGMands["clock"] = &ChatManager::GMCommand_Clock;
+  mGMands["boon"] = &ChatManager::GMCommand_Boon;
   mGMands["skill"] = &ChatManager::GMCommand_Skill;
   mGMands["sort"] = &ChatManager::GMCommand_Sort;
   mGMands["deposit"] = &ChatManager::GMCommand_Deposit;
@@ -451,6 +454,9 @@ bool ChatManager::HandleGMand(
         conf && conf->GetQoLCommands() &&
         (firstWord == "sort" || firstWord == "deposit" || firstWord == "qol");
 
+    // Stephen's Clock commands are for every player too
+    playerCommand |= firstWord == "clock" || firstWord == "boon";
+
     if (state->GetUserLevel() == 0 && "@version" != message &&
         "@license" != message && !playerCommand) {
       // Don't process the message but don't fail
@@ -522,6 +528,24 @@ bool ChatManager::ExecuteGMCommand(
   return false;
 }
 
+bool ChatManager::GMCommand_Clock(
+    const std::shared_ptr<channel::ChannelClientConnection>& client,
+    const std::list<libcomp::String>& args) {
+  (void)args;
+  StephensClock::Command(mServer.lock(), client, false, 0);
+  return true;
+}
+
+bool ChatManager::GMCommand_Boon(
+    const std::shared_ptr<channel::ChannelClientConnection>& client,
+    const std::list<libcomp::String>& args) {
+  std::list<libcomp::String> argsCopy = args;
+  int32_t choice = 0;
+  GetIntegerArg<int32_t>(choice, argsCopy);
+  StephensClock::Command(mServer.lock(), client, true, choice);
+  return true;
+}
+
 bool ChatManager::GMCommand_QoLHelp(
     const std::shared_ptr<channel::ChannelClientConnection>& client,
     const std::list<libcomp::String>& args) {
@@ -532,8 +556,12 @@ bool ChatManager::GMCommand_QoLHelp(
                   "@sort depo [N] - stack and sort depository box N (1+)");
   SendChatMessage(client, ChatType_t::CHAT_SELF,
                   "@deposit - store items the depository already has");
+  SendChatMessage(client, ChatType_t::CHAT_SELF,
+                  "@deposit all - store every storable item");
+  SendChatMessage(client, ChatType_t::CHAT_SELF,
+                  "@clock - show your Stephen's Clock run");
   return SendChatMessage(client, ChatType_t::CHAT_SELF,
-                         "@deposit all - store every storable item");
+                         "@boon N - choose boon N in a Stephen's Clock run");
 }
 
 bool ChatManager::GMCommand_Sort(

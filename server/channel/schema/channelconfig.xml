@@ -26,6 +26,29 @@
         <member type="bool" name="PartnerAssistOwnSkills" default="true"/>
         <member type="bool" name="QoLCommands" default="true"/>
         <member type="bool" name="QuickDepositAnywhere" default="true"/>
+        <!-- Stephen's Clock: rogue-like dungeon runs (docs/stephens-clock.md) -->
+        <member type="bool" name="StephensClock" default="true"/>
+        <!-- Item ID of Stephen's Clock I; tiers II..X are the next 9 IDs -->
+        <member type="u32" name="StephensClockItemID" default="19001"/>
+        <!-- TimeLimitData entry the client shows the countdown with -->
+        <member type="u8" name="StephensClockTimerID" default="121" max="127"/>
+        <!-- Duration of that TimeLimitData entry in seconds -->
+        <member type="u16" name="StephensClockTimerLength" default="3600"/>
+        <!-- Seconds on the clock at the start, per boss kill, lost per death -->
+        <member type="u16" name="StephensClockTime" default="1500"/>
+        <member type="u16" name="StephensClockBossTime" default="240"/>
+        <member type="u16" name="StephensClockDeathPenalty" default="120"/>
+        <!-- Enemy level a boss needs to drop Stephen's Clock I, and the
+             chance in percent -->
+        <member type="u8" name="StephensClockDropLevel" default="70"/>
+        <member type="float" name="StephensClockDropRate" default="8.0"/>
+        <!-- Percent scale of all clock rewards / enemy bonuses -->
+        <member type="u16" name="StephensClockRewardPercent" default="100"/>
+        <member type="u16" name="StephensClockDifficultyPercent" default="100"/>
+        <!-- Instance definition IDs that never become clock runs -->
+        <member type="set" name="StephensClockDenyInstances">
+            <element type="u32"/>
+        </member>
         <member type="bool" name="StaggerRework" default="false"/>
         <member type="u16" name="StaggerWeakPercent" default="300"/>
         <member type="u16" name="StaggerNormalPercent" default="100"/>

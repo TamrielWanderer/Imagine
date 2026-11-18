@@ -71,6 +71,7 @@ SET(${PROJECT_NAME}_SRCS
     src/PerformanceTimer.cpp
     src/PlasmaState.cpp
     src/SkillManager.cpp
+    src/StephensClock.cpp
     src/TokuseiManager.cpp
     src/WorldClock.cpp
     src/Zone.cpp
@@ -112,6 +113,7 @@ SET(${PROJECT_NAME}_HDRS
     src/PerformanceTimer.h
     src/PlasmaState.h
     src/SkillManager.h
+    src/StephensClock.h
     src/TokuseiManager.h
     src/WorldClock.h
     src/Zone.h
