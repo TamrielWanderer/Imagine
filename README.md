@@ -35,11 +35,12 @@ This is the `experimental` branch. It holds changes that differ from the origina
 
 The partner demon AI runs in the game client, so these changes are a patch to `ImagineClient.exe`. The patcher changes:
 
-- **Shorter pauses.** The demon waits less time between actions (1.5 s → 0.5 s between actions, and shorter waits after skills and movement).
+- **Shorter pauses.** The demon waits less time between actions (1.5 s → 0.3 s between actions, and shorter waits after skills and movement). It also checks more than twice as often whether it should run back to its owner.
 - **Better skill choice.** Healing and recovery come first when an ally is hurt. Then attack skills, and buffs and debuffs last.
 - **Guard and counter only when attacked.** The demon no longer uses guard or counter skills when nothing is attacking it.
 - **Learning enemy resistances.** When a skill is drained, nulled or reflected by an enemy type, the demon remembers it and stops using that element on that enemy type. The memory resets when the client closes.
-- **Aggressive mode.** The old "Defense" option in the demon's behavior settings now switches modes. Enabled means normal mode. Disabled means aggressive mode: the demon attacks any hostile enemy in medium range, even when no one is fighting.
+- **Stronger skills first.** Inside a skill type (attack, rush, shot and so on) the game picked one of the demon's skills at random, so a basic attack came up as often as its best skill. The demon now draws three and uses the strongest of them.
+- **Aggressive mode.** The old "Defense" option in the demon's behavior settings now switches modes. Enabled means normal mode. Disabled means aggressive mode: the demon attacks hostile enemies near its owner, even when no one is fighting. It picks the enemy closest to the owner, so it finishes its current target and then follows a player who has moved on instead of starting new fights behind them.
 - **Area skills only in range.** Skills that hit an area around the demon (for example Absolute Zero) are only chosen when the target is inside the area. Otherwise the demon picks another suitable skill.
 
 The game checks the client's code, so the patcher also updates the matching hash in `comp_client.dll`. It keeps `.orig` backups of both files.

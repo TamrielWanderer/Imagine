@@ -143,6 +143,39 @@ demon can attack with an element the enemy drains.
   up for it and waited in place.
 - comp_client.dll's expected SHA-1 of .text updated to match.
 
+## Second round (2026-11-18): pacing
+
+Asked for after a full dungeon run: the demon was slow to start, idle
+between kills, left behind, and used weak skills.
+
+- `+0x70` is **not** a tick interval. Every function of the task writes
+  step numbers there (400/500 in Update, 200/300 in ReceiveMessage,
+  600..700 in the act function), so it is a "last line reached" marker.
+  Do not patch it.
+- `+0xfc` is the attack-mode switch: message value 0x1655 sets it, 0x1656
+  clears it (with a 1000 ms pause). The act function only issues orders
+  while it is 1.
+- Act function 0x639230 switches on the demon's action state (entity data
+  +0x2e0, jump table 0x639aa0). State 0 (idle): if `+0x108` (an action
+  just ended) it resets and, with attack mode off, pauses 3000 ms
+  (0x6393b5); otherwise it runs the picker (0x42ec8a) and sends the order,
+  and while the order has not started (`+0xfb` bit 0) it waits
+  `+0xe8 + 1000` ms before sending again (0x63947b; same for bit 8 at
+  0x6397c2).
+- Update: every 1500 ms (`+0xf4`, 0x639ec3 and 0x639f1b) it calls
+  0x6339e0 and, if that says no, sends message 0x4d (run to the owner).
+- Waits shortened again: 0x95 and 0x1c6 to 300, 0xca to 1000, 0x10f to
+  600, 0x115 to 1500, and the ones above (3000 to 600, 1000 to 600, 1500
+  to 700), plus 0x6348ed (AI switched on, 1500 to 500) and 0x6343e9
+  (attack mode off, 1000 to 400).
+- Aggressive scan anchored on the owner (`+0x9c`): candidates must be
+  within 1800 of the owner and 2400 of the demon (the picker ignores
+  targets beyond 2500), nearest to the owner wins.
+- Skill draw inside a group (0x63696c, `rand() % count` over the 0x1c-byte
+  entries, +0 = skill ID): replaced by the best of three draws by damage
+  modifier (skill record +0x78). Code at 0x6390d0, build_skill_pick.py.
+- `tests/` has emulator tests for both code caves (unicorn + keystone).
+
 ## Next steps
 
 1. Name the 13 categories (decompile builders 0x401519 / 0x402d65 and the
