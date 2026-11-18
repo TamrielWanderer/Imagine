@@ -1,6 +1,6 @@
 """Emulator test of build_aggressive_cave.py (needs unicorn and keystone)."""
 import os, sys, struct, importlib
-sys.path.insert(0, '.')
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
 from unicorn import *
 from unicorn.x86_const import *
 def build(debug):

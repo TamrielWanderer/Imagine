@@ -1,6 +1,6 @@
 """Emulator test of build_skill_pick.py (needs unicorn and keystone)."""
 import os, sys, struct, random, collections
-sys.path.insert(0, '.')
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
 from unicorn import *
 from unicorn.x86_const import *
 import build_skill_pick as B
