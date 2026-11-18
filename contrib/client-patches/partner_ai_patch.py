@@ -238,6 +238,9 @@ def main():
     ap.add_argument('--debug', action='store_true',
                     help='aggressive mode also writes partner_ai_debug.txt')
     a = ap.parse_args()
+    a.exe = a.exe.lstrip('\ufeff')
+    if os.path.isdir(a.exe):
+        a.exe = os.path.join(a.exe, 'ImagineClient.exe')
 
     data = bytearray(open(a.exe, 'rb').read())
     if len(data) != EXPECTED_SIZE:

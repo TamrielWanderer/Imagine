@@ -46,10 +46,10 @@ The partner demon AI runs in the game client, so these changes are a patch to `I
 The game checks the client's code, so the patcher also updates the matching hash in `comp_client.dll`. It keeps `.orig` backups of both files.
 
 ```
-python partner_ai_patch.py "<client folder>"            # apply the patch
-python partner_ai_patch.py "<client folder>" --check    # show what is applied
-python partner_ai_patch.py "<client folder>" --revert   # restore the original files
-python partner_ai_patch.py "<client folder>" --debug    # also write a debug log
+scripts\partner_ai_patch.bat                               # apply to the client folder start_server.ps1 remembers
+scripts\partner_ai_patch.bat "<client folder>" --check      # show what is applied
+scripts\partner_ai_patch.bat "<client folder>" --revert     # restore the original values
+scripts\partner_ai_patch.bat "<client folder>" --debug      # also write a debug log (partner_ai_debug.txt)
 ```
 
 The patch checks the original bytes before it writes anything, and it can upgrade a client patched with an older version. The reverse engineering notes are in `docs/client-partner-ai-notes.md`. The scripts `build_learning_cave.py`, `build_aggressive_cave.py` and `build_skill_filter.py` rebuild the added code.
