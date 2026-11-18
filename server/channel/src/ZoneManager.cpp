@@ -4523,7 +4523,7 @@ bool ZoneManager::StartInstanceTimer(
   if (sendTimer) {
     // The dungeon's own timer takes over the display from Stephen's Clock
     for (auto client : instance->GetConnections()) {
-      StephensClock::HideTimer(mServer.lock(), client, false);
+      StephensClock::HideTimer(mServer.lock(), client, false, true);
     }
 
     SendInstanceTimer(instance, nullptr, false);

@@ -724,9 +724,37 @@ void StephensClock::InstanceLeft(
     const std::shared_ptr<ChannelServer>& server,
     const std::shared_ptr<ChannelClientConnection>& client,
     const std::shared_ptr<ZoneInstance>& instance) {
-  if (client && IsRun(instance)) {
-    client->GetClientState()->SetClockSeenInstance(0);
-    HideTimer(server, client, true);
+  if (!client || !IsRun(instance)) {
+    return;
+  }
+
+  client->GetClientState()->SetClockSeenInstance(0);
+
+  bool running = IsRewarding(instance) && !instance->GetClockComplete();
+  HideTimer(server, client, true, false);
+
+  if (running) {
+    // Walking out is giving up. Once nobody is left inside the run has
+    // failed, so coming back does not pick it up again.
+    bool othersInside = false;
+    for (auto other : instance->GetConnections()) {
+      if (other != client) {
+        othersInside = true;
+        break;
+      }
+    }
+
+    if (othersInside) {
+      Tell(server, client,
+           "You left the dungeon. The run goes on for the players still "
+           "inside.");
+    } else {
+      instance->SetClockExpired(true);
+      instance->ClearClockBoonOffer();
+      Tell(server, client,
+           "You left the dungeon before clearing it. The Stephen's Clock "
+           "run has failed.");
+    }
   }
 }
 
@@ -1039,7 +1067,7 @@ void StephensClock::Complete(const std::shared_ptr<ChannelServer>& server,
   libcomp::String left = TimeString(now, instance->GetClockExpire());
   instance->SetClockExpire(0);
   for (auto client : instance->GetConnections()) {
-    HideTimer(server, client, false);
+    HideTimer(server, client, false, true);
   }
 
   uint8_t tier = instance->GetClockTier();
@@ -1123,7 +1151,8 @@ void StephensClock::SendTimer(
 
 void StephensClock::HideTimer(
     const std::shared_ptr<ChannelServer>& server,
-    const std::shared_ptr<ChannelClientConnection>& client, bool queue) {
+    const std::shared_ptr<ChannelClientConnection>& client, bool queue,
+    bool success) {
   auto conf = GetConf(server);
   if (!conf || !client || !client->GetClientState()->GetClockTimerShown()) {
     return;
@@ -1134,7 +1163,7 @@ void StephensClock::HideTimer(
   libcomp::Packet p;
   p.WritePacketCode(ChannelToClientPacketCode_t::PACKET_TIME_LIMIT_END);
   p.WriteU32Little((uint32_t)conf->GetStephensClockTimerID());
-  p.WriteS8(0);
+  p.WriteS8(success ? 0 : 1);  // The client shows CLEAR for 0
   p.WriteU8(1);
 
   if (queue) {

@@ -178,9 +178,10 @@ class StephensClock {
                         bool queue);
 
   /// Hide the countdown for one client
+  /// (success shows the client's CLEAR message, otherwise its failure one)
   static void HideTimer(const std::shared_ptr<ChannelServer>& server,
                         const std::shared_ptr<ChannelClientConnection>& client,
-                        bool queue);
+                        bool queue, bool success = false);
 
   /// "@clock" and "@boon N" chat commands
   static void Command(const std::shared_ptr<ChannelServer>& server,

@@ -14,6 +14,8 @@ Code: `server/channel/src/StephensClock.cpp`. Effects: `datastore/data/tokusei/t
 
 If the countdown ends first, the dungeon stays as it is and can still be finished, but its rewards go back to normal and no clock is given.
 
+Leaving the dungeon before it is cleared (home point, teleport, walking out) counts as giving up: the game shows its failure message, and once nobody is left inside the run has failed. Coming back in does not resume it. If other players are still inside, the run goes on for them.
+
 Commands, for every player:
 
 | Command | What it does |
