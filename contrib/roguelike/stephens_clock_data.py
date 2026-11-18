@@ -185,7 +185,11 @@ def edit_timers(objs, timer, remove):
     o = set_member(o, 'warningTime', 300)
     o = set_cdata(o, 'startMessage', "Stephen's Clock is ticking.")
     o = set_cdata(o, 'warningMessage', "Stephen's Clock: 5 minutes left!")
-    o = set_cdata(o, 'successMessage', '')
+    # The client prints the "success" text whenever the server takes the
+    # countdown away (clear, leaving, time penalty) and falls back to a
+    # built-in "CLEAR" when it is empty, so it has to be neutral. The
+    # server's own chat lines say how the run ended.
+    o = set_cdata(o, 'successMessage', "Stephen's Clock has stopped.")
     o = set_cdata(o, 'failureMessage', "Stephen's Clock has stopped.")
     return insert_by_id(kept, [o], pat), removed
 
